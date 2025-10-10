@@ -1599,7 +1599,14 @@ function updateSliderBackground(slider) {
   const max = parseFloat(slider.max);
   const val = parseFloat(slider.value);
   const percentage = ((val - min) / (max - min)) * 100;
-  slider.style.background = `linear-gradient(to right, var(--disabled) 0%, var(--disabled) ${percentage}%, var(--primary) ${percentage}%, var(--primary) 100%)`;
+  
+  // Rating slider: gray on left (filtered out), colored on right (included)
+  // Distance slider: colored on left (within range), gray on right (excluded)
+  if (slider.id === 'distance') {
+    slider.style.background = `linear-gradient(to right, var(--primary) 0%, var(--primary) ${percentage}%, var(--disabled) ${percentage}%, var(--disabled) 100%)`;
+  } else {
+    slider.style.background = `linear-gradient(to right, var(--disabled) 0%, var(--disabled) ${percentage}%, var(--primary) ${percentage}%, var(--primary) 100%)`;
+  }
 }
 
 // ====== INIT ======
