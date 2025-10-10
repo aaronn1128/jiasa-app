@@ -38,7 +38,7 @@
   .pull-refresh svg{ width: 24px; height: 24px; stroke: var(--primary); animation: rotate 1s linear infinite; }
   @keyframes rotate{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
   
-  .swipe-card{position:absolute; inset:0; background:var(--card); border:1px solid var(--divider); border-radius:16px; padding:12px 12px 32px; box-shadow:0 14px 40px rgba(0,0,0,.55);
+  .swipe-card{position:absolute; inset:0; background:var(--card); border:1px solid var(--divider); border-radius:16px; padding:12px 12px 40px; box-shadow:0 14px 40px rgba(0,0,0,.55);
     display:flex; flex-direction:column; gap:8px; touch-action:none; transition: transform .25s ease, opacity .25s ease, box-shadow .25s ease; z-index:100; overflow:hidden; }
   
   .swipe-card.onboard-card{ background: linear-gradient(135deg, #3a2118 0%, #2b1912 100%); border: 2px solid var(--primary); box-shadow: 0 14px 40px rgba(255,138,61,.3), 0 0 0 1px rgba(255,138,61,.2); }
@@ -51,8 +51,8 @@
   .controls{display:flex; gap:10px; padding:0 12px 12px;} 
   
   .btn{ flex:1; cursor:pointer; background:var(--btn); border:1px solid rgba(255,255,255,.18); padding:clamp(10px,3.4vw,14px) 14px; border-radius:14px; color:var(--fg); font-weight:700; font-size:14px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; transition: all .2s; text-decoration: none; }
-  .btn:hover{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.24); }
-  .btn:active{ transform: scale(0.97); }
+  .btn:hover{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.24); transform: translateY(-1px); }
+  .btn:active{ transform: scale(0.98); }
   .btn.primary{ background:linear-gradient(180deg,var(--primary),var(--primary-2)); color:#220b07; border:none; box-shadow:0 6px 20px color-mix(in srgb, var(--primary) 30%, transparent); }
   .btn.secondary{ background: color-mix(in srgb, var(--nope) 15%, transparent); border:1px solid color-mix(in srgb, var(--nope) 70%, transparent); color: var(--nope); box-shadow: 0 4px 12px rgba(252,165,165,.2); }
   .btn-icon{ width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
@@ -107,8 +107,9 @@
   .select{width:100%; background: var(--select-bg); color: var(--select-text); border: 1px solid var(--select-border); padding: 10px 12px; border-radius: 12px; font-size: 16px; appearance: none; outline: none;}
   .select option{background: var(--select-bg); color: var(--select-text);} .section{border-top:1px dashed var(--divider); margin-top:10px; padding-top:10px;} .section:first-child{border-top:none; margin-top:0; padding:0;}
   .card{background:var(--card); border:1px solid var(--divider); border-radius:16px; padding:16px; box-shadow:0 14px 40px rgba(0,0,0,.55); animation: fadeIn .25s ease;}
-  .hero{width:100%; height:170px; border-radius:12px; object-fit:cover; margin-bottom:10px; border:1px solid var(--divider); display:block;}
-  .card-photo{width:100%; height:140px; border-radius:10px; object-fit:cover; margin-top:8px; border:1px solid var(--divider);}
+  .hero{width:100%; height:220px; border-radius:12px; object-fit:cover; margin-bottom:10px; border:1px solid var(--divider); display:block;}
+  .card-photo{width:100%; height:140px; border-radius:10px; object-fit:cover; margin-top:8px; border:1px solid var(--divider); position:relative;}
+  .card-photo::after{content:""; position:absolute; inset:0; background:linear-gradient(180deg, transparent 50%, rgba(0,0,0,.4)); border-radius:10px; pointer-events:none;}
   .kv{margin-top:8px; color:#ffe7d6; font-size:14px;} .hours-badge{font-weight:800;} .hours-badge.open{color:#22c55e;} .hours-badge.closed{color:#ef4444;}
   .hours-box{border:1px dashed var(--divider); border-radius:12px; padding:8px 10px; margin-top:8px; display:none;} .hours-box.show{display:block;}
   .hours-row{padding:4px 0; font-size:13px; display:flex; justify-content:space-between; color:#ffe7d6;}
@@ -934,10 +935,12 @@ function renderStack(){
       
       const title = nameOf(r); 
       const priceSymbols = '$'.repeat(Math.max(1, r.price || 1));
-      const meta = `⭐ ${(r.rating || 0).toFixed(1)} • ${r.address || ''} • <span class="price">${priceSymbols}</span>`;
+      const meta = `⭐ ${(r.rating || 0).toFixed(1)} • ${r.address || ''}`;
       
-      const mainTypes = r.types.filter(t => typeMap[t]).slice(0, 3);
+      const mainTypes = r.types.filter(t => typeMap[t]).slice(0, 5);
       const chips = mainTypes.map(t => `<span class="chip">${typeMap[t] || t}</span>`).join("");
+      const priceChip = `<span class="chip" style="background:linear-gradient(135deg,var(--primary),var(--primary-2)); color:#220b07; font-weight:800;">${priceSymbols}</span>`;
+      const allChips = priceChip + chips;
       
       const photoHtml = r.photoUrl ? 
         `<img src="${r.photoUrl}" class="card-photo" alt="${title}" loading="lazy"/>` : 
@@ -954,7 +957,7 @@ function renderStack(){
         ${photoHtml}
         <div class="title">${title}</div>
         <div class="meta">${meta}</div>
-        <div class="row">${chips}</div>
+        <div class="row">${allChips}</div>
         ${openBadge ? `<div style="margin-top:4px;">${openBadge}</div>` : ''}`;
       
       if (r.isSponsored && j === 0) analytics.trackSponsor(r, 'view');
@@ -1002,14 +1005,15 @@ function renderBaseResult(r){
     hero.style.display = "none";
   }
   
-  const mainTypes = r.types.filter(t => typeMap[t]).slice(0, 3);
+  const mainTypes = r.types.filter(t => typeMap[t]).slice(0, 5);
   const typeChips = mainTypes.map(t => `<span class="chip">${typeMap[t] || t}</span>`).join("");
+  const priceChip = `<span class="chip" style="background:linear-gradient(135deg,var(--primary),var(--primary-2)); color:#220b07; font-weight:800;">${priceSymbols}</span>`;
   
   const sponsorBadge = r.isSponsored ? `<div style="display:inline-block; background:linear-gradient(135deg, var(--sponsor), #ffed4e); color:#1b0f0a; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:800; margin-left:8px;">${t("sponsor")}</div>` : '';
   
   $("#resultBody").innerHTML = `<div class="title">${rname}${sponsorBadge}</div>
-    <div class="meta" style="margin:6px 0 10px;">${rating} • <span class="price">${priceSymbols}</span></div>
-    <div class="row">${typeChips}</div>
+    <div class="meta" style="margin:6px 0 10px;">${rating}</div>
+    <div class="row">${priceChip}${typeChips}</div>
     <div class="divider"></div>
     <div style="color:#ffe7d6;">${r.address || ''}</div>`;
     
