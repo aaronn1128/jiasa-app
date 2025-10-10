@@ -150,6 +150,26 @@
   body.theme-mocha { --bg:#1f1b16; --card:#2a241e; --fg:#f4efe8; --muted:#b9a897; --primary:#d6a676; --primary-2:#b88757; }
   body.theme-olive { --bg:#0f120e; --card:#171b16; --fg:#e9f0e6; --muted:#a6b2a2; --primary:#8bbf5a; --primary-2:#6ca83f; }
   body.theme-sakura{ --bg:#110e11; --card:#1a151a; --fg:#ffeef3; --muted:#f8c6d4; --primary:#ff8fb3; --primary-2:#e66a94; }
+
+/* === Filters 區塊：三組欄位的留白＋虛線 === */
+#filtersBlock .field-group{
+  margin:14px 0 16px;
+  padding-bottom:10px;
+  border-bottom:1px dashed var(--divider);
+}
+#filtersBlock .field-group:last-child{ border-bottom:none; }
+
+/* 細部間距，避免擁擠 */
+#filtersBlock .rating-display{ margin:6px 0 8px; }
+#filtersBlock input[type=range]{ margin-top:6px; }
+#filtersBlock .row{ margin-top:6px; }
+
+/* 「餐廳類型」與「料理風格」相鄰時的分隔虛線 */
+.section + .section{
+  border-top:1px dashed var(--divider);
+  margin-top:14px;
+  padding-top:14px;
+}
 </style>
 </head>
 <body>
@@ -201,11 +221,27 @@
 <div class="section" id="filtersBlock">
   <div class="filter-actions"><div class="label" style="margin:0;">篩選條件</div><button class="clear-filters" id="btnClearFilters">清除全部</button></div>
   <div class="toggle-wrapper"><span class="toggle-label" id="lblOpenNow">只顯示營業中</span><div class="toggle" id="toggleOpenNow" role="switch" aria-checked="false"><div class="toggle-knob"></div></div></div>
-  <div class="label" id="lblMinRating">最低評分</div><div class="rating-display"><span>⭐</span><span class="rating-value" id="ratingShow">3.0+</span></div>
-  <input id="minRating" max="5" min="0" step="0.5" type="range" value="3"/><div class="hint" id="hintRating" style="display:none;">只顯示評分高於此值的餐廳。</div>
-  <div class="label" id="lblPrice">價格範圍</div><div class="row" id="priceRow"></div><div class="hint" id="hintPrice" style="display:none;">可選擇價格範圍</div>
-  <div class="label" id="lblDistance">搜尋距離(公尺)</div><div class="row"><span class="pill" id="distanceShow">≤ 1500m</span></div>
-  <input id="distance" max="5000" min="500" step="250" type="range" value="1500"/><div class="hint" id="hintDistance" style="display:none;">需允許定位權限。</div>
+<div>
+  <div class="field-group" id="grpRating">
+    <div class="label" id="lblMinRating">最低評分</div>
+    <div class="rating-display"><span>⭐</span><span class="rating-value" id="ratingShow">3.0+</span></div>
+    <input id="minRating" type="range" min="0" max="5" step="0.5" value="3"/>
+    <div class="hint" id="hintRating" style="display:none;">只顯示評分高於此值的餐廳。</div>
+  </div>
+
+  <div class="field-group" id="grpPrice">
+    <div class="label" id="lblPrice">價格範圍</div>
+    <div class="row" id="priceRow"></div>
+    <div class="hint" id="hintPrice" style="display:none;">可選擇價格範圍</div>
+  </div>
+
+  <div class="field-group" id="grpDistance">
+    <div class="label" id="lblDistance">搜尋距離(公尺)</div>
+    <div class="row"><span class="pill" id="distanceShow">≤ 1500m</span></div>
+    <input id="distance" type="range" min="500" max="5000" step="250" value="1500"/>
+    <div class="hint" id="hintDistance" style="display:none;">需允許定位權限。</div>
+  </div>
+</div>
 </div>
 <div class="section"><div class="label" id="lblTypes">餐廳類型</div><div class="row" id="typesRow"></div><div class="hint" id="hintTypes" style="display:none;">可選擇多個類型，未選表示全部。</div></div>
 <div class="section"><div class="label" id="lblCuisine">料理風格(關鍵字)</div><div class="row" id="cuisineRow"></div><div class="hint" id="hintCuisine" style="display:none;">作為搜尋關鍵字使用。</div></div>
