@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport"/>
+<meta name="theme-color" content="#ff8a3d"/>
+<meta name="description" content="Jiasa - 用滑的找餐廳"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<title>Jiasa</title>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW"></script>
+<style>
+  :root { --bg:#1b0f0a; --fg:#fff6f0; --muted:#ffddc9; --primary:#ff8a3d; --primary-2:#ff5a5f; --card:#2b1912; --btn:#3a2219; --chip:#41251a;
+    --disabled:#3a2a24; --disabled-text:#c8a99a; --select-bg:#2b1c14; --select-text:#f5e0c5; --select-border:#5a4638; --like:#6ee7a8; --nope:#fca5a5;
+    --divider: rgba(255,255,255,.12); --ok:#22c55e; --bad:#ef4444; --sponsor:#ffd700; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: rgba(0,0,0,0);} html,body{height:100%; margin:0; background:#000;}
+  .phone { width:390px; height:100vh; max-height:844px; margin:0 auto; background: radial-gradient(900px 600px at 15% -10%, #3a2118, #1b0f0a), linear-gradient(180deg, #2a1710, #1b0f0a);
+    color:var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial; display:flex; flex-direction:column; overflow:hidden;
+    border-left:1px solid rgba(255,255,255,.06); border-right:1px solid rgba(255,255,255,.06); 
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  header{flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; background:linear-gradient(180deg, rgba(27,15,10,.95), rgba(27,15,10,.75)); position:sticky; top:0; z-index:5000; backdrop-filter: blur(6px);}
+  header h1{margin:0; font-size:clamp(16px, 2.8vw, 18px); display:flex; align-items:center; gap:8px;} .dot{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 12px var(--primary-2),0 0 24px rgba(255,90,95,.4);display:inline-block;}
+  .right{display:flex; align-items:center; gap:6px;}
+  .iconbtn{ --btn-bg: rgba(255,255,255,.06); --btn-border: rgba(255,255,255,.22); border:1px solid var(--btn-border); background: var(--btn-bg); color: var(--fg);
+    padding:10px; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; transition: background .2s, border-color .2s, box-shadow .2s, color .2s;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+  .iconbtn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.28); } 
+  .iconbtn:active{ background: rgba(255,255,255,.14); transform: scale(0.97); }
+  .iconbtn:focus-visible{ outline: none; box-shadow: 0 0 0 3px rgba(255,255,255,.20); }
+  .iconbtn svg{ width:20px; height:20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  .iconbtn.active{ color: var(--primary); border-color: color-mix(in oklab, var(--primary) 50%, white 30%); background: color-mix(in oklab, var(--primary) 12%, transparent); }
+  
+  main{flex:1 1 auto; display:flex; flex-direction:column; overflow:hidden;} 
+  .stack{position:relative; flex:1 1 auto; margin:12px; border-radius:16px; touch-action: pan-y; }
+  
+  .pull-refresh{ position: absolute; top: -60px; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; background: var(--card); border: 1px solid var(--divider); border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: transform .2s ease, opacity .2s ease; opacity: 0; z-index: 10; }
+  .pull-refresh.active{ opacity: 1; }
+  .pull-refresh svg{ width: 24px; height: 24px; stroke: var(--primary); animation: rotate 1s linear infinite; }
+  @keyframes rotate{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+  
+  .swipe-card{position:absolute; inset:0; background:var(--card); border:1px solid var(--divider); border-radius:16px; padding:12px 12px 32px; box-shadow:0 14px 40px rgba(0,0,0,.55);
+    display:flex; flex-direction:column; gap:8px; touch-action:none; transition: transform .25s ease, opacity .25s ease, box-shadow .25s ease; z-index:100; overflow:hidden; }
+  
+  .swipe-card.onboard-card{ background: linear-gradient(135deg, #3a2118 0%, #2b1912 100%); border: 2px solid var(--primary); box-shadow: 0 14px 40px rgba(255,138,61,.3), 0 0 0 1px rgba(255,138,61,.2); }
+  .swipe-card.sponsor-card{ background: linear-gradient(135deg, #2b1912 0%, #3a2118 100%); border: 1px solid rgba(255,215,0,.4); box-shadow: 0 14px 40px rgba(0,0,0,.55), 0 0 20px rgba(255,215,0,.15); }
+  
+  .sponsor-badge{ position: absolute; top: 14px; right: 14px; background: linear-gradient(135deg, var(--sponsor), #ffed4e); color: #1b0f0a; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(255,215,0,.4); z-index: 10; }
+  
+  .title{font-size:clamp(18px, 3.5vw, 22px); font-weight:800;} .meta{color:var(--muted); font-size:clamp(12px, 2.6vw, 13px); display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .price{font-weight:800; color:#ffd29b;} .row{display:flex; gap:8px; flex-wrap:wrap;} .chip{font-size:12px; color:#ffd9c6; background:#3a2118; padding:6px 9px; border-radius:999px; border:1px solid rgba(255,255,255,.14);}
+  .controls{display:flex; gap:10px; padding:0 12px 12px;} 
+  
+  .btn{ flex:1; cursor:pointer; background:var(--btn); border:1px solid rgba(255,255,255,.18); padding:clamp(10px,3.4vw,14px) 14px; border-radius:14px; color:var(--fg); font-weight:700; font-size:14px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; transition: all .2s; text-decoration: none; }
+  .btn:hover{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.24); }
+  .btn:active{ transform: scale(0.97); }
+  .btn.primary{ background:linear-gradient(180deg,var(--primary),var(--primary-2)); color:#220b07; border:none; box-shadow:0 6px 20px color-mix(in srgb, var(--primary) 30%, transparent); }
+  .btn.secondary{ background: color-mix(in srgb, var(--nope) 15%, transparent); border:1px solid color-mix(in srgb, var(--nope) 70%, transparent); color: var(--nope); box-shadow: 0 4px 12px rgba(252,165,165,.2); }
+  .btn-icon{ width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+  .btn[disabled]{opacity:.45; cursor:not-allowed; filter:grayscale(.25); pointer-events:none;} 
+  
+  .hint{color:var(--muted); font-size:12px; text-align:center; padding:4px 0 10px;}
+  .empty{color:var(--muted); text-align:center; margin-top:60px; padding:0 16px;} 
+  .badge{position:absolute; top:14px; padding:6px 10px; border:3px solid; border-radius:10px; font-weight:900; letter-spacing:.08em; transform:rotate(-15deg); opacity:0; transition:opacity .15s;}
+  .badge.like{left:14px; color:#063; border-color:var(--like); background:rgba(110,231,168,.12);} 
+  .badge.nope{right:14px; color:#6b0000; border-color:var(--nope); background:rgba(252,165,165,.12); transform:rotate(15deg);}
+  
+  .onboard-content{ flex: 1; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .onboard-title{ font-size: 24px; font-weight: 900; color: var(--primary); margin-bottom: 4px; }
+  .onboard-subtitle{ font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .instruction-item{ display: flex; gap: 12px; padding: 10px; background: rgba(255,255,255,.03); border-radius: 10px; border: 1px solid rgba(255,255,255,.08); }
+  .instruction-icon{ flex-shrink: 0; width: 36px; height: 36px; background: linear-gradient(135deg, var(--primary), var(--primary-2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 8px; }
+  .instruction-icon svg{ width: 100%; height: 100%; stroke: #220b07; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .instruction-text{ flex: 1; }
+  .instruction-text strong{ display: block; color: var(--fg); margin-bottom: 2px; font-size: 14px; }
+  .instruction-text span{ display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .swipe-hint-box{ margin-top: auto; padding: 10px; text-align: center; color: var(--muted); font-size: 12px; }
+  
+  .skeleton-card{ position: absolute; inset: 0; background: var(--card); border: 1px solid var(--divider); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .skeleton-box{ background: linear-gradient(90deg, rgba(255,255,255,.03) 25%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.03) 75%); background-size: 200% 100%; animation: skeleton-loading 1.5s ease-in-out infinite; border-radius: 8px; }
+  @keyframes skeleton-loading{ 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skeleton-photo{ height: 140px; }
+  .skeleton-title{ height: 24px; width: 70%; }
+  .skeleton-meta{ height: 16px; width: 50%; }
+  .skeleton-chips{ display: flex; gap: 8px; }
+  .skeleton-chip{ height: 28px; width: 60px; }
+  
+  .photo-placeholder{ width: 100%; height: 140px; border-radius: 10px; background: linear-gradient(135deg, #40261c 0%, #2b1912 100%); border: 1px solid var(--divider); display: flex; align-items: center; justify-content: center; margin-top: 8px; }
+  .photo-placeholder svg{ width: 48px; height: 48px; stroke: var(--muted); opacity: 0.4; }
+  
+  .toast{ position: fixed; bottom: calc(80px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); background: var(--card); color: var(--fg); padding: 12px 20px; border-radius: 12px; border: 1px solid var(--divider); box-shadow: 0 8px 24px rgba(0,0,0,.6); z-index: 9999; animation: toastIn .3s ease; max-width: 80%; text-align: center; font-size: 14px; }
+  .toast.success{ border-color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, var(--card)); }
+  .toast.error{ border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--card)); }
+  .toast.offline{ border-color: var(--muted); background: color-mix(in srgb, var(--muted) 10%, var(--card)); }
+  @keyframes toastIn{ from{ opacity: 0; transform: translate(-50%, 20px); } to{ opacity: 1; transform: translate(-50%, 0); } }
+  
+  .offline-badge{ position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: var(--muted); color: var(--bg); padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; z-index: 6000; display: none; }
+  .offline-badge.show{ display: block; animation: fadeIn .3s ease; }
+  
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:2000; opacity:0; transition:opacity .25s ease; pointer-events:none;} .overlay.active{display:block; opacity:1; pointer-events:auto;}
+  .modal{position:fixed; left:50%; transform:translate(-50%, 20px); top:60px; width:360px; max-width:94vw; background:linear-gradient(180deg,#341e15,#24130d); border:1px solid var(--divider); border-radius:16px; z-index:2001; display:none; opacity:0; transition: transform .25s ease, opacity .25s ease; color: var(--fg); pointer-events:auto;}
+  .modal.active{display:block; opacity:1; transform:translate(-50%, 0);} .modal-header{display:flex; justify-content:space-between; align-items:center; padding:14px 14px 8px;}
+  .modal-body{padding:0 14px 14px; max-height:70vh; overflow-y:auto; -webkit-overflow-scrolling: touch;} .label{font-size:12px; color:var(--muted); margin:8px 0 6px; text-transform:uppercase; letter-spacing:.08em;}
+  .pill{background:var(--chip); border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:8px 12px; color:var(--fg); font-size:14px; cursor:pointer; transition: all .2s;}
+  .pill:hover{background:color-mix(in srgb, var(--chip) 80%, white 20%); border-color:rgba(255,255,255,.28);}
+  input[type=range]{width:100%; accent-color:var(--primary-2);} 
+  input, select, textarea{ font-size: 16px; }
+  .select{width:100%; background: var(--select-bg); color: var(--select-text); border: 1px solid var(--select-border); padding: 10px 12px; border-radius: 12px; font-size: 16px; appearance: none; outline: none;}
+  .select option{background: var(--select-bg); color: var(--select-text);} .section{border-top:1px dashed var(--divider); margin-top:10px; padding-top:10px;} .section:first-child{border-top:none; margin-top:0; padding:0;}
+  .card{background:var(--card); border:1px solid var(--divider); border-radius:16px; padding:16px; box-shadow:0 14px 40px rgba(0,0,0,.55); animation: fadeIn .25s ease;}
+  .hero{width:100%; height:170px; border-radius:12px; object-fit:cover; margin-bottom:10px; border:1px solid var(--divider); display:block;}
+  .card-photo{width:100%; height:140px; border-radius:10px; object-fit:cover; margin-top:8px; border:1px solid var(--divider);}
+  .kv{margin-top:8px; color:#ffe7d6; font-size:14px;} .hours-badge{font-weight:800;} .hours-badge.open{color:#22c55e;} .hours-badge.closed{color:#ef4444;}
+  .hours-box{border:1px dashed var(--divider); border-radius:12px; padding:8px 10px; margin-top:8px; display:none;} .hours-box.show{display:block;}
+  .hours-row{padding:4px 0; font-size:13px; display:flex; justify-content:space-between; color:#ffe7d6;}
+  .hours-day{color:var(--muted);}
+  .result-controls{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; position:relative; z-index:50;} 
+  .result-actions{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; position:relative; z-index:50;}
+  .divider{border-top:1px dashed var(--divider); margin:12px 0;} .list-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px dashed var(--divider); color:var(--fg);}
+  .list-left{display:flex; align-items:center; gap:10px; min-width:0;}
+  .thumb{width:42px; height:42px; border-radius:8px; background:#40261c; border:1px solid var(--divider); display:flex; align-items:center; justify-content:center; font-weight:800; color:#ffd9c6; overflow:hidden;}
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .list-title{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .list-meta{font-size:12px; color:#ffdabf;}
+  .row-actions{display:flex; gap:6px;}
+  .i-btn{border:1px solid var(--divider); background:#2b1912; color:#ffe7d6; padding:6px 8px; border-radius:8px; cursor:pointer;}
+  
+  .toggle-wrapper{display:flex; align-items:center; justify-content:space-between; padding:8px 0;}
+  .toggle-label{font-size:14px; color:var(--fg);}
+  .toggle{position:relative; width:48px; height:26px; background:var(--disabled); border-radius:999px; cursor:pointer; transition:background .2s; border:1px solid var(--divider);}
+  .toggle.active{background:linear-gradient(180deg,var(--primary),var(--primary-2));}
+  .toggle-knob{position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:transform .2s; box-shadow:0 2px 4px rgba(0,0,0,.3);}
+  .toggle.active .toggle-knob{transform:translateX(22px);}
+  
+  .rating-display{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--fg);}
+  .rating-value{font-weight:700; color:var(--primary);}
+  
+  #typesRow, #cuisineRow{ margin-bottom:8px; }
+  
+  .filter-actions{ display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .clear-filters{ background: transparent; border: 1px solid var(--divider); color: var(--muted); padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: all .2s; }
+  .clear-filters:hover{ background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.24); color: var(--fg); }
+  
+  .empty-with-action{ display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 60px; padding: 0 16px; }
+  .empty-icon{ width: 64px; height: 64px; stroke: var(--muted); opacity: 0.3; }
+
+  @keyframes fadeIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+  body.theme-mocha { --bg:#1f1b16; --card:#2a241e; --fg:#f4efe8; --muted:#b9a897; --primary:#d6a676; --primary-2:#b88757; }
+  body.theme-olive { --bg:#0f120e; --card:#171b16; --fg:#e9f0e6; --muted:#a6b2a2; --primary:#8bbf5a; --primary-2:#6ca83f; }
+  body.theme-sakura{ --bg:#110e11; --card:#1a151a; --fg:#ffeef3; --muted:#f8c6d4; --primary:#ff8fb3; --primary-2:#e66a94; }
+</style>
+</head>
+<body>
+<div class="offline-badge" id="offlineBadge">離線模式</div>
+<div class="phone">
+<header>
+<h1><span class="dot"></span> Jiasa</h1>
+<div class="right">
+<button aria-label="History" class="iconbtn" id="btnHistory"><svg fill="none" stroke="currentColor" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></button>
+<button aria-label="Favorites" class="iconbtn" id="btnFavs"><svg fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button>
+<button aria-label="Settings" class="iconbtn" id="btnSettings"><svg viewbox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.77 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.51.39 1.05.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z" fill="none" stroke="currentColor" stroke-width="2"></path><circle cx="12" cy="12" fill="none" r="3.2" stroke="currentColor" stroke-width="2"></circle></svg></button>
+</div>
+</header>
+<main id="swipe">
+<div class="pull-refresh" id="pullRefresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
+<div class="stack" id="stack"></div>
+<div class="controls">
+<button aria-label="Undo" class="btn" id="btnUndo">↩︎ 撤回</button>
+<button class="btn secondary" id="btnSkip">略過</button>
+<button class="btn primary" id="btnChoose">選這家</button>
+</div>
+<div class="hint" id="hintKeys">提示：可以左右滑動卡片，或用 ← → 鍵操作。</div>
+</main>
+<section id="result" style="display:none;">
+<div class="card" id="resultCard">
+<img alt="photo" class="hero" id="hero" style="display:none;"/>
+<div id="resultBody"></div>
+<div class="divider"></div>
+<div class="kv" id="gEnrich"></div>
+<div class="hours-badge" id="hoursBadge"></div>
+<button class="btn" id="toggleHours" style="margin-top:8px; display:none;">顯示營業時間</button>
+<div class="hours-box" id="hoursBox"></div>
+</div>
+<div class="result-controls">
+<button class="btn" id="btnBack"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg><span id="btnBackText">返回</span></button>
+<button class="btn primary" id="btnFav"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg><span id="btnFavText">收藏</span></button>
+</div>
+<div class="result-actions">
+<button class="btn" id="btnMap"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span id="btnMapText">開地圖</span></button>
+<a class="btn" id="btnWebsite" rel="noopener" style="display:none;" target="_blank"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg><span id="btnWebText">官網</span></a>
+</div>
+</section>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div aria-modal="true" class="modal" id="modal" role="dialog">
+<div class="modal-header"><div class="label" id="mTitle">設定</div><button aria-label="Close" class="iconbtn" id="btnClose"><svg viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg></button></div>
+<div class="modal-body">
+<div class="section" id="filtersBlock">
+  <div class="filter-actions"><div class="label" style="margin:0;">篩選條件</div><button class="clear-filters" id="btnClearFilters">清除全部</button></div>
+  <div class="toggle-wrapper"><span class="toggle-label" id="lblOpenNow">只顯示營業中</span><div class="toggle" id="toggleOpenNow" role="switch" aria-checked="false"><div class="toggle-knob"></div></div></div>
+  <div class="label" id="lblMinRating">最低評分</div><div class="rating-display"><span>⭐</span><span class="rating-value" id="ratingShow">3.0+</span></div>
+  <input id="minRating" max="5" min="0" step="0.5" type="range" value="3"/><div class="hint" id="hintRating">只顯示評分高於此值的餐廳。</div>
+  <div class="label" id="lblPrice">價格範圍</div><div class="row"><span class="pill" id="priceShow">$$</span></div>
+  <input id="priceLevel" max="4" min="1" step="1" type="range" value="2"/><div class="hint" id="hintPrice">$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴</div>
+  <div class="label" id="lblDistance">搜尋距離(公尺)</div><div class="row"><span class="pill" id="distanceShow">≤ 1500m</span></div>
+  <input id="distance" max="5000" min="500" step="250" type="range" value="1500"/><div class="hint" id="hintDistance">需允許定位權限。</div>
+</div>
+<div class="section"><div class="label" id="lblTypes">餐廳類型</div><div class="row" id="typesRow"></div><div class="hint" id="hintTypes">可選擇多個類型，未選表示全部。</div></div>
+<div class="section"><div class="label" id="lblCuisine">料理風格(關鍵字)</div><div class="row" id="cuisineRow"></div><div class="hint" id="hintCuisine">作為搜尋關鍵字使用。</div></div>
+<div class="section"><div class="label" id="lblLang">語言</div><select class="select" id="langSelModal"><option value="zh">繁體中文</option><option value="en">English</option></select></div>
+<div class="section"><div class="label" id="lblTheme">主題</div><select class="select" id="themeSelect"><option data-zh="經典" value="classic">Classic</option><option data-zh="摩卡" value="mocha">Mocha</option><option data-zh="橄欖" value="olive">Olive</option><option data-zh="櫻花" value="sakura">Sakura</option></select></div>
+<div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;"><button class="btn primary" id="applySettings" style="width:auto;"><span id="applyText">套用</span></button></div>
+</div>
+</div>
+
+<div class="overlay" id="favOverlay"></div>
+<div aria-modal="true" class="modal" id="favModal" role="dialog">
+<div class="modal-header"><div class="label" id="favTitle">收藏清單</div><button aria-label="Close" class="iconbtn" id="favClose"><svg viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg></button></div>
+<div class="modal-body"><div id="favList"></div></div>
+</div>
+
+<div class="overlay" id="histOverlay"></div>
+<div aria-modal="true" class="modal" id="histModal" role="dialog">
+<div class="modal-header"><div class="label" id="histTitle">歷史紀錄</div><button aria-label="Close" class="iconbtn" id="histClose"><svg viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg></button></div>
+<div class="modal-body"><div id="histList"></div></div>
+</div>
+
+<script>
+// ====== CONFIG ======
+const CONFIG = {
+  GOOGLE_PLACES_API_KEY: 'AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI',
+  API_TIMEOUT: 10000,
+  API_MAX_RETRIES: 2,
+  CACHE_TTL: 60 * 60 * 1000,
+  PHOTO_MAX_WIDTH: 800,
+  DEMO_MODE: false,
+  STORAGE_KEYS: {
+    lang: 'jiasa_lang',
+    theme: 'jiasa_theme',
+    filters: 'jiasa_filters',
+    favs: 'jiasa_favs',
+    hist: 'jiasa_hist',
+    configured: 'jiasa_configured',
+    onboarding: 'jiasa_seen_onboarding',
+    preferences: 'jiasa_preferences',
+    analytics: 'jiasa_analytics'
+  },
+  DEFAULT_FILTERS: {
+    openNow: false,
+    minRating: 3,
+    priceLevel: 2,
+    distance: 1500,
+    types: [],
+    cuisines: []
+  }
+};
+
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (REDUCED && navigator.vibrate) navigator.vibrate = ()=>{};
+
+// ====== ICONS ======
+const ICONS = {
+  settings: `<svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.77 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.51.39 1.05.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3.2"/></svg>`,
+  swipeBoth: `<svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7M12 19l-7-7 7-7"/></svg>`,
+  heart: `<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+  map: `<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  image: `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`,
+  search: `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`
+};
+
+// ====== I18N ======
+const I18N = {
+  zh: { 
+    settings:"設定", language:"語言", skip:"略過", choose:"選這家", back:"返回",
+    hintKeys:"提示：可以左右滑動卡片，或用 ← → 鍵操作。", 
+    noMatches:"沒有符合條件的店家", retry:"重試", adjustFilters:"調整篩選",
+    hours:"營業時間", distance:"搜尋距離", favorites:"收藏清單", fav:"收藏", 
+    history:"歷史紀錄", emptyFav:"尚未收藏", emptyHist:"尚無紀錄",
+    like:"選這家", nope:"略過", openMap:"開地圖", website:"官網",
+    nowOpen:"營業中", nowClose:"休息中", hoursUnknown:"營業時間未提供",
+    view:"查看", del:"刪除", showHours:"顯示營業時間", hideHours:"收起營業時間",
+    theme:"主題", apply:"套用", clearFilters:"清除全部",
+    openNow:"只顯示營業中", minRating:"最低評分", priceLevel:"價格範圍", 
+    types:"餐廳類型", cuisines:"料理風格(關鍵字)",
+    hintRating:"只顯示評分高於此值的餐廳。", 
+    hintPrice:"$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴", 
+    hintDistance:"需允許定位權限。", 
+    hintTypes:"可選擇多個類型，未選表示全部。", 
+    hintCuisine:"作為搜尋關鍵字使用。",
+    typeText:{ restaurant:"餐廳", cafe:"咖啡廳", bar:"酒吧", bakery:"烘焙坊", meal_takeaway:"外帶", meal_delivery:"外送" },
+    cuText:{ japanese:"日式", chinese:"中式", italian:"義式", thai:"泰式", korean:"韓式", vietnamese:"越南", western:"西餐", vegetarian:"蔬食", seafood:"海鮮", bbq:"燒烤", hotpot:"火鍋", noodles:"麵食" },
+    searching:"搜尋中...", searchError:"搜尋失敗", offline:"目前離線", usingCache:"使用快取資料",
+    refreshing:"更新中...", filtersCleared:"已清除所有篩選", favoriteAdded:"已加入收藏", 
+    onlineAgain:"已恢復連線", refreshed:"已更新",
+    onboard: {
+      title: "歡迎使用 Jiasa", subtitle: "用滑的找餐廳，超簡單",
+      instructions: [
+        { icon: "settings", title: "設定條件", text: "點右上角設定預算、距離和喜好" },
+        { icon: "swipeBoth", title: "滑動選擇", text: "左滑略過，右滑選擇喜歡的餐廳" },
+        { icon: "heart", title: "收藏管理", text: "把喜歡的餐廳加入收藏清單" },
+        { icon: "map", title: "查看資訊", text: "選定後可查看地圖、營業時間等" }
+      ],
+      swipeHint: "滑動卡片開始探索"
+    },
+    sponsor: "贊助"
+  },
+  en: { 
+    settings:"Settings", language:"Language", skip:"Skip", choose:"Choose", back:"Back",
+    hintKeys:"Tip: swipe or use ← → keys.", 
+    noMatches:"No matches", retry:"Retry", adjustFilters:"Adjust Filters",
+    hours:"Hours", distance:"Search Radius", favorites:"Favorites", fav:"Favorite", 
+    history:"History", emptyFav:"No favorites yet", emptyHist:"No history yet",
+    like:"Choose", nope:"Skip", openMap:"Open Map", website:"Website",
+    nowOpen:"Open now", nowClose:"Closed", hoursUnknown:"Hours not available",
+    view:"View", del:"Delete", showHours:"Show hours", hideHours:"Hide hours",
+    theme:"Theme", apply:"Apply", clearFilters:"Clear All",
+    openNow:"Open Now Only", minRating:"Minimum Rating", priceLevel:"Price Range", 
+    types:"Restaurant Types", cuisines:"Cuisine Keywords",
+    hintRating:"Show only places rated above this.", 
+    hintPrice:"$ Cheap | $$ Moderate | $$$ Expensive | $$$$ Very Expensive",
+    hintDistance:"Location permission required.", 
+    hintTypes:"Select multiple types, or none for all.", 
+    hintCuisine:"Used as search keywords.",
+    typeText:{ restaurant:"Restaurant", cafe:"Cafe", bar:"Bar", bakery:"Bakery", meal_takeaway:"Takeout", meal_delivery:"Delivery" },
+    cuText:{ japanese:"Japanese", chinese:"Chinese", italian:"Italian", thai:"Thai", korean:"Korean", vietnamese:"Vietnamese", western:"Western", vegetarian:"Vegetarian", seafood:"Seafood", bbq:"BBQ", hotpot:"Hot Pot", noodles:"Noodles" },
+    searching:"Searching...", searchError:"Search failed", offline:"Offline", usingCache:"Using cached data",
+    refreshing:"Refreshing...", filtersCleared:"All filters cleared", favoriteAdded:"Added to favorites",
+    onlineAgain:"Back online", refreshed:"Refreshed",
+    onboard: {
+      title: "Welcome to Jiasa", subtitle: "Swipe to find restaurants",
+      instructions: [
+        { icon: "settings", title: "Set Preferences", text: "Tap settings to configure budget, distance & preferences" },
+        { icon: "swipeBoth", title: "Swipe to Choose", text: "Swipe left to skip, right to select restaurants" },
+        { icon: "heart", title: "Save Favorites", text: "Add restaurants you like to favorites list" },
+        { icon: "map", title: "View Details", text: "Check map, hours, and more info after selection" }
+      ],
+      swipeHint: "Swipe to start exploring"
+    },
+    sponsor: "Sponsor"
+  }
+};
+
+// ====== STATE ======
+let lang = localStorage.getItem(CONFIG.STORAGE_KEYS.lang) || "zh";
+let currentTheme = localStorage.getItem(CONFIG.STORAGE_KEYS.theme) || 'classic';
+let filters = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.filters) || JSON.stringify(CONFIG.DEFAULT_FILTERS));
+filters.types = new Set(filters.types || []);
+filters.cuisines = new Set(filters.cuisines || []);
+
+let pool = []; 
+let index = 0; 
+let current = null;
+let favs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.favs)||"[]");
+let history = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.hist)||"[]");
+let hasConfigured = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.configured) || "false");
+let hasSeenOnboarding = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.onboarding) || "false");
+let undoSlot = null;
+let isOnline = navigator.onLine;
+let staged = null;
+let isLoading = false;
+
+// ====== ANALYTICS ======
+class Analytics {
+  constructor() {
+    this.events = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.analytics) || "[]");
+    this.session = { id: Date.now(), start: Date.now(), events: [] };
+  }
+  track(event, label, payload = {}) {
+    const record = { event, label, timestamp: Date.now(), session_id: this.session.id, lang, theme: currentTheme, ...payload };
+    this.session.events.push(record);
+    this.events.push(record);
+    if (this.events.length > 1000) this.events = this.events.slice(-1000);
+    localStorage.setItem(CONFIG.STORAGE_KEYS.analytics, JSON.stringify(this.events));
+    console.log(`[Analytics] ${event}:`, label, payload);
+  }
+  trackSwipe(restaurant, direction) {
+    this.track(`swipe_${direction}`, restaurant.id, { place_id: restaurant.place_id, name: restaurant.name, rating: restaurant.rating, price: restaurant.price, types: restaurant.types, isSponsored: restaurant.isSponsored });
+  }
+  trackSponsor(restaurant, action) {
+    if (!restaurant.isSponsored) return;
+    this.track(`sponsor_${action}`, restaurant.id, { place_id: restaurant.place_id, name: restaurant.name });
+  }
+  getStats() {
+    const swipes = this.session.events.filter(e => e.event.startsWith('swipe_'));
+    const likes = swipes.filter(e => e.event === 'swipe_like').length;
+    const skips = swipes.filter(e => e.event === 'swipe_skip').length;
+    return { totalSwipes: swipes.length, likes, skips, likeRate: likes / (likes + skips) || 0 };
+  }
+}
+const analytics = new Analytics();
+
+// ====== RECOMMENDATION ENGINE ======
+class RecommendationEngine {
+  constructor() {
+    this.preferences = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.preferences) || "{}");
+  }
+  learn(restaurant, liked) {
+    if (!this.preferences.types) this.preferences.types = {};
+    if (!this.preferences.cuisines) this.preferences.cuisines = {};
+    if (!this.preferences.priceRange) this.preferences.priceRange = {};
+    const weight = liked ? 1 : -0.5;
+    restaurant.types.forEach(type => {
+      this.preferences.types[type] = (this.preferences.types[type] || 0) + weight;
+    });
+    if (restaurant.cuisines) {
+      restaurant.cuisines.forEach(cuisine => {
+        this.preferences.cuisines[cuisine] = (this.preferences.cuisines[cuisine] || 0) + weight;
+      });
+    }
+    const priceKey = `price_${restaurant.price}`;
+    this.preferences.priceRange[priceKey] = (this.preferences.priceRange[priceKey] || 0) + weight;
+    if (liked && restaurant.rating) {
+      this.preferences.minRatingPreferred = Math.max(this.preferences.minRatingPreferred || 0, restaurant.rating);
+    }
+    this.save();
+  }
+  score(restaurant) {
+    let score = 0;
+    restaurant.types.forEach(type => { score += this.preferences.types?.[type] || 0; });
+    if (restaurant.cuisines) {
+      restaurant.cuisines.forEach(cuisine => { score += this.preferences.cuisines?.[cuisine] || 0; });
+    }
+    const priceKey = `price_${restaurant.price}`;
+    score += this.preferences.priceRange?.[priceKey] || 0;
+    if (restaurant.rating >= (this.preferences.minRatingPreferred || 4.0)) score += 2;
+    return score;
+  }
+  sortPool(restaurants) {
+    return restaurants.filter(r => !r.isOnboarding && !r.isSponsored).sort((a, b) => this.score(b) - this.score(a));
+  }
+  save() { localStorage.setItem(CONFIG.STORAGE_KEYS.preferences, JSON.stringify(this.preferences)); }
+}
+const recommender = new RecommendationEngine();
+
+// ====== OFFLINE SUPPORT ======
+window.addEventListener('online', () => {
+  isOnline = true;
+  $("#offlineBadge").classList.remove('show');
+  showToast(t('onlineAgain'), 'success');
+  buildPool().then(() => renderStack());
+});
+
+window.addEventListener('offline', () => {
+  isOnline = false;
+  $("#offlineBadge").classList.add('show');
+  showToast(t('offline'), 'offline');
+});
+
+// ====== GOOGLE PLACES API ======
+let userLocation = null;
+let placesService = null;
+let map = null;
+
+function initPlacesService() {
+  if (!placesService && window.google) {
+    const mapDiv = document.createElement('div');
+    mapDiv.style.display = 'none';
+    document.body.appendChild(mapDiv);
+    map = new google.maps.Map(mapDiv);
+    placesService = new google.maps.places.PlacesService(map);
+  }
+}
+
+async function getUserLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation not supported'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        userLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        resolve(userLocation);
+      },
+      error => reject(error),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  });
+}
+
+function getPhotoUrl(photo) {
+  if (!photo) return null;
+  try {
+    return photo.getUrl({ maxWidth: CONFIG.PHOTO_MAX_WIDTH });
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchNearbyPlaces(location, radius = 1500) {
+  return new Promise((resolve, reject) => {
+    if (!placesService) {
+      reject(new Error('Places service not initialized'));
+      return;
+    }
+    
+    const types = filters.types.size > 0 ? Array.from(filters.types) : ['restaurant'];
+    const keyword = filters.cuisines.size > 0 ? Array.from(filters.cuisines).join(' ') : '';
+    
+    if (types.length > 1) {
+      Promise.all(types.map(type => {
+        return new Promise((res) => {
+          const request = {
+            location: new google.maps.LatLng(location.lat, location.lng),
+            radius: radius,
+            type: type,
+            keyword: keyword || undefined
+          };
+          
+          placesService.nearbySearch(request, (results, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+              res(results || []);
+            } else {
+              res([]);
+            }
+          });
+        });
+      })).then(resultsArrays => {
+        const allResults = resultsArrays.flat();
+        const uniqueResults = Array.from(new Map(allResults.map(p => [p.place_id, p])).values());
+        resolve(uniqueResults);
+      }).catch(reject);
+    } else {
+      const request = {
+        location: new google.maps.LatLng(location.lat, location.lng),
+        radius: radius,
+        type: types[0],
+        keyword: keyword || undefined
+      };
+      
+      placesService.nearbySearch(request, (results, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+          resolve(results || []);
+        } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+          resolve([]);
+        } else {
+          reject(new Error(`Places API error: ${status}`));
+        }
+      });
+    }
+  });
+}
+
+function transformPlaceData(place) {
+  const types = place.types || ['restaurant'];
+  const cuisineGuess = [];
+  
+  if (place.name) {
+    const name = place.name.toLowerCase();
+    if (name.includes('japanese') || name.includes('sushi') || name.includes('ramen') || name.includes('日式') || name.includes('日本')) cuisineGuess.push('japanese');
+    if (name.includes('chinese') || name.includes('dim sum') || name.includes('中式') || name.includes('中國')) cuisineGuess.push('chinese');
+    if (name.includes('italian') || name.includes('pizza') || name.includes('pasta') || name.includes('義式')) cuisineGuess.push('italian');
+    if (name.includes('thai') || name.includes('泰式')) cuisineGuess.push('thai');
+    if (name.includes('korean') || name.includes('bbq') || name.includes('韓式')) cuisineGuess.push('korean');
+    if (name.includes('vietnamese') || name.includes('pho') || name.includes('越南')) cuisineGuess.push('vietnamese');
+  }
+  
+  return {
+    id: place.place_id,
+    place_id: place.place_id,
+    name: place.name,
+    rating: place.rating || 0,
+    price: place.price_level || 2,
+    address: place.vicinity || place.formatted_address || '',
+    types: types,
+    cuisines: cuisineGuess,
+    location: place.geometry?.location ? {
+      lat: place.geometry.location.lat(),
+      lng: place.geometry.location.lng()
+    } : null,
+    photos: place.photos || [],
+    photoUrl: place.photos?.[0] ? getPhotoUrl(place.photos[0]) : null,
+    opening_hours: place.opening_hours ? {
+      open_now: place.opening_hours.open_now,
+      weekday_text: place.opening_hours.weekday_text || null
+    } : null,
+    website: place.website || null,
+    isSponsored: false
+  };
+}
+
+async function getPlaceDetails(placeId) {
+  return new Promise((resolve, reject) => {
+    if (!placesService) {
+      reject(new Error('Places service not initialized'));
+      return;
+    }
+    
+    const request = {
+      placeId: placeId,
+      fields: ['name', 'rating', 'price_level', 'formatted_address', 'geometry', 'photos', 'opening_hours', 'website', 'types', 'vicinity']
+    };
+    
+    placesService.getDetails(request, (place, status) => {
+      if (status === google.maps.places.PlacesServiceStatus.OK) {
+        resolve(transformPlaceData(place));
+      } else {
+        reject(new Error(`Place details error: ${status}`));
+      }
+    });
+  });
+}
+
+// ====== DEMO DATA ======
+function generateDemoData() {
+  return Array.from({length:20}).map((_,i)=>{
+    const id = 'demo_' + (i+1);
+    const types = [["restaurant"],["cafe"],["restaurant","bar"],["bakery"],["restaurant","meal_takeaway"]][i%5];
+    const cuisines = [["japanese"],["chinese"],["italian"],["thai"],["korean"]][i%5];
+    const price = [1,2,2,3,4][i%5];
+    const rating = [4.0,4.5,4.2,3.8,4.7][i%5];
+    const names = ["示範餐廳","測試咖啡","Sample Restaurant","Test Cafe","デモ店"];
+    const websites = ["https://example.com/restaurant1", "https://example.com/cafe1", null, "https://example.com/bakery1", "https://example.com/restaurant2"];
+    const isSponsored = (i+1) % 7 === 0;
+    
+    const openingHours = {
+      open_now: i % 3 !== 0,
+      weekday_text: [
+        "星期一: 11:00 – 21:00", "星期二: 11:00 – 21:00", "星期三: 11:00 – 21:00",
+        "星期四: 11:00 – 21:00", "星期五: 11:00 – 22:00", "星期六: 10:00 – 22:00",
+        "星期日: 10:00 – 21:00"
+      ]
+    };
+    
+    return { 
+      id, place_id: id, name: names[i%5] + ' ' + (i+1), rating, price, 
+      address: "台北市信義區 Sample St. " + (i+1), types, cuisines,
+      location: {lat: 25.04 + i*0.001, lng: 121.56 + i*0.001},
+      photos: [], photoUrl: null, opening_hours: openingHours,
+      website: websites[i % 5], isSponsored: isSponsored
+    };
+  });
+}
+
+// ====== UTILITIES ======
+const $ = s => document.querySelector(s);
+function t(k){ return I18N[lang][k]; }
+function nameOf(r){ return r.name || "Unknown"; }
+function saveFilters(){ 
+  localStorage.setItem(CONFIG.STORAGE_KEYS.filters, JSON.stringify({ 
+    openNow: filters.openNow, minRating: filters.minRating, priceLevel: filters.priceLevel,
+    distance: filters.distance, types: [...filters.types], cuisines: [...filters.cuisines] 
+  }));
+}
+function applyTheme(theme){ 
+  document.body.className = ""; 
+  if(theme!=="classic"){ document.body.classList.add("theme-"+theme); } 
+}
+
+function showToast(message, type = 'info') {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translate(-50%, 20px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+function createOnboardingCard() {
+  return { id: '__onboarding__', isOnboarding: true, type: 'onboarding' };
+}
+
+// ====== SKELETON ======
+function showSkeletonLoader() {
+  const stack = $("#stack");
+  stack.innerHTML = `
+    <div class="skeleton-card">
+      <div class="skeleton-box skeleton-photo"></div>
+      <div class="skeleton-box skeleton-title"></div>
+      <div class="skeleton-box skeleton-meta"></div>
+      <div class="skeleton-chips">
+        <div class="skeleton-box skeleton-chip"></div>
+        <div class="skeleton-box skeleton-chip"></div>
+        <div class="skeleton-box skeleton-chip"></div>
+      </div>
+    </div>
+  `;
+}
+
+// ====== BUILD POOL ======
+async function buildPool() {
+  try {
+    isLoading = true;
+    setButtonsLoading(true);
+    showSkeletonLoader();
+    
+    let allPlaces;
+    
+    if (CONFIG.DEMO_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      allPlaces = generateDemoData();
+    } else {
+      try {
+        if (!userLocation) {
+          showToast(lang === 'zh' ? '正在取得位置...' : 'Getting location...', 'info');
+          await getUserLocation();
+        }
+        
+        showToast(t('searching'), 'info');
+        const places = await fetchNearbyPlaces(userLocation, filters.distance);
+        
+        if (places.length === 0) {
+          allPlaces = [];
+        } else {
+          allPlaces = places.map(transformPlaceData);
+        }
+        
+        localStorage.setItem('jiasa_cache', JSON.stringify({
+          data: allPlaces,
+          timestamp: Date.now(),
+          location: userLocation
+        }));
+        
+      } catch (error) {
+        console.error('API error:', error);
+        
+        const cache = localStorage.getItem('jiasa_cache');
+        if (cache) {
+          const cached = JSON.parse(cache);
+          if (Date.now() - cached.timestamp < CONFIG.CACHE_TTL) {
+            showToast(t('usingCache'), 'offline');
+            allPlaces = cached.data;
+          } else {
+            throw new Error('Cache expired and API unavailable');
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    window.allDemoData = allPlaces;
+    
+    pool = allPlaces.filter(r => {
+      if (filters.openNow && !r.opening_hours?.open_now) return false;
+      if (r.rating < filters.minRating) return false;
+      if (r.price > filters.priceLevel) return false;
+      if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
+      return true;
+    });
+    
+    const normalRestaurants = pool.filter(r => !r.isSponsored);
+    const sponsoredRestaurants = pool.filter(r => r.isSponsored);
+    const sortedNormal = recommender.sortPool(normalRestaurants);
+    pool = sortedNormal;
+    
+    sponsoredRestaurants.forEach((sponsor, idx) => {
+      const insertPos = 5 + (idx * 6);
+      if (insertPos < pool.length) pool.splice(insertPos, 0, sponsor);
+      else pool.push(sponsor);
+    });
+    
+    if (!hasSeenOnboarding) {
+      pool.unshift(createOnboardingCard());
+    }
+    
+    index = 0;
+    
+    if (pool.length === 0) {
+      showErrorState(t('noMatches'));
+    }
+    
+    analytics.track('filter_apply', 'completed', { count: pool.length });
+    
+  } catch (error) {
+    console.error('Build pool error:', error);
+    
+    let errorMessage = t('searchError');
+    if (error.message === 'User denied Geolocation') {
+      errorMessage = lang === 'zh' ? '需要位置權限才能搜尋餐廳' : 'Location permission required';
+    } else if (error.message.includes('OVER_QUERY_LIMIT')) {
+      errorMessage = lang === 'zh' ? 'API 配額已用盡，請稍後再試' : 'API quota exceeded, please try again later';
+    } else if (error.message.includes('REQUEST_DENIED')) {
+      errorMessage = lang === 'zh' ? 'API 請求被拒絕，請檢查設定' : 'API request denied, please check settings';
+    }
+    
+    showErrorState(errorMessage);
+    analytics.track('api_error', 'build_pool_failed', { error: error.message });
+  } finally {
+    isLoading = false;
+    setButtonsLoading(false);
+  }
+}
+
+function setButtonsLoading(loading) {
+  $("#applySettings").disabled = loading;
+  $("#btnSkip").disabled = loading;
+  $("#btnChoose").disabled = loading;
+}
+
+function showErrorState(message) {
+  const stack = $("#stack");
+  stack.innerHTML = `
+    <div class="empty-with-action">
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        ${ICONS.search}
+      </svg>
+      <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div>
+      <button class="btn primary" onclick="retryBuildPool()" style="min-width:120px;">${t('retry')}</button>
+      <button class="btn" onclick="openModal()" style="min-width:120px;">${t('adjustFilters')}</button>
+      ${CONFIG.DEMO_MODE ? '' : '<button class="btn" onclick="switchToDemoMode()" style="min-width:120px; margin-top:8px;">' + (lang === 'zh' ? '使用示範模式' : 'Use Demo Mode') + '</button>'}
+    </div>
+  `;
+}
+
+window.switchToDemoMode = function() {
+  CONFIG.DEMO_MODE = true;
+  window.allDemoData = generateDemoData();
+  showToast(lang === 'zh' ? '已切換到示範模式' : 'Switched to demo mode', 'info');
+  analytics.track('action', 'switch_demo_mode');
+  retryBuildPool();
+};
+
+async function retryBuildPool() {
+  analytics.track('action', 'retry_search');
+  await buildPool();
+  renderStack();
+}
+
+// ====== RENDERING (Part 1) ======
+function updateThemeLabel() { 
+  const lbl = $("#lblTheme"); 
+  if(lbl) lbl.textContent = t("theme"); 
+}
+
+function updateThemeOptions() {
+  const sel = $("#themeSelect"); 
+  if (!sel) return;
+  Array.from(sel.options).forEach(opt=>{
+    const themeValue = opt.value; 
+    if (!opt.getAttribute('data-zh')) {
+      let zhText; 
+      switch(themeValue){
+        case'classic':zhText='經典';break;
+        case'mocha':zhText='摩卡';break;
+        case'olive':zhText='橄欖';break;
+        case'sakura':zhText='櫻花';break;
+        default:zhText=themeValue;
+      }
+      opt.setAttribute('data-zh', zhText);
+    }
+    opt.textContent = (lang==='zh') ? opt.getAttribute('data-zh') : (themeValue.charAt(0).toUpperCase() + themeValue.slice(1));
+  });
+}
+
+function renderText(){
+  $("#btnSkip").textContent=t("skip"); 
+  $("#btnChoose").textContent=t("choose"); 
+  $("#btnBackText").textContent=t("back"); 
+  $("#btnFavText").textContent=t("fav");
+  $("#btnMapText").textContent = t("openMap"); 
+  $("#btnWebText").textContent = t("website");
+  const btnUndo = $("#btnUndo"); 
+  if (btnUndo) btnUndo.textContent = `↩︎ ${lang === 'zh' ? '撤回' : 'Undo'}`;
+  $("#hintKeys").textContent=t("hintKeys"); 
+  $("#mTitle").textContent=t("settings"); 
+  $("#lblLang").textContent=t("language");
+  $("#lblOpenNow").textContent=t("openNow");
+  $("#lblMinRating").textContent=t("minRating");
+  $("#lblPrice").textContent=t("priceLevel");
+  $("#lblDistance").textContent=t("distance");
+  $("#lblTypes").textContent=t("types");
+  $("#lblCuisine").textContent=t("cuisines");
+  $("#hintRating").textContent=t("hintRating");
+  $("#hintPrice").textContent=t("hintPrice");
+  $("#hintDistance").textContent=t("hintDistance");
+  $("#hintTypes").textContent=t("hintTypes");
+  $("#hintCuisine").textContent=t("hintCuisine");
+  $("#favTitle").textContent=t("favorites"); 
+  $("#histTitle").textContent=t("history");
+  $("#toggleHours").textContent = t("showHours");
+  $("#offlineBadge").textContent = t("offline");
+  $("#btnClearFilters").textContent = t("clearFilters");
+  updateThemeLabel(); 
+  updateThemeOptions();
+  const applySpan = $("#applySettings").querySelector("span"); 
+  if(applySpan) applySpan.textContent=t("apply");
+  if(pool.length > 0) renderStack();
+}
+
+function renderStack(){
+  const stack=$("#stack"); 
+  stack.innerHTML="";
+  const topN = pool.slice(index, index+3);
+  
+  if(!topN.length){ 
+    stack.innerHTML = `<div class="empty">${t("noMatches")}</div>`; 
+    return; 
+  }
+  
+  const typeMap = I18N[lang].typeText;
+  
+  for(let j = Math.min(2, topN.length-1); j>=0; j--){
+    const r = topN[j]; 
+    const depth = j;
+    const card=document.createElement("div"); 
+    
+    if (r.isOnboarding) {
+      card.className="swipe-card onboard-card";
+      const onboard = I18N[lang].onboard;
+      const instructionsHTML = onboard.instructions.map(inst => `
+        <div class="instruction-item">
+          <div class="instruction-icon">${ICONS[inst.icon]}</div>
+          <div class="instruction-text">
+            <strong>${inst.title}</strong>
+            <span>${inst.text}</span>
+          </div>
+        </div>
+      `).join('');
+      
+      card.innerHTML = `
+        <div class="onboard-content">
+          <div class="onboard-title">${onboard.title}</div>
+          <div class="onboard-subtitle">${onboard.subtitle}</div>
+          ${instructionsHTML}
+          <div class="swipe-hint-box">${onboard.swipeHint}</div>
+        </div>
+      `;
+      
+      if (j === 0) analytics.track('onboarding', 'view');
+      
+    } else {
+      card.className = r.isSponsored ? "swipe-card sponsor-card" : "swipe-card";
+      
+      const title = nameOf(r); 
+      const priceSymbols = '$'.repeat(Math.max(1, r.price || 1));
+      const meta = `⭐ ${(r.rating || 0).toFixed(1)} • ${r.address || ''} • <span class="price">${priceSymbols}</span>`;
+      
+      const mainTypes = r.types.filter(t => typeMap[t]).slice(0, 3);
+      const chips = mainTypes.map(t => `<span class="chip">${typeMap[t] || t}</span>`).join("");
+      
+      const photoHtml = r.photoUrl ? 
+        `<img src="${r.photoUrl}" class="card-photo" alt="${title}" loading="lazy"/>` : 
+        `<div class="photo-placeholder">${ICONS.image}</div>`;
+      
+      const openBadge = r.opening_hours?.open_now ? `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>` : 
+                        r.opening_hours?.open_now === false ? `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>` : '';
+      
+      const sponsorBadge = r.isSponsored ? `<div class="sponsor-badge">${t("sponsor")}</div>` : '';
+      
+      card.innerHTML = `${sponsorBadge}
+        <div class="badge like">${t("like")}</div>
+        <div class="badge nope">${t("nope")}</div>
+        ${photoHtml}
+        <div class="title">${title}</div>
+        <div class="meta">${meta}</div>
+        <div class="row">${chips}</div>
+        ${openBadge ? `<div style="margin-top:4px;">${openBadge}</div>` : ''}`;
+      
+      if (r.isSponsored && j === 0) analytics.trackSponsor(r, 'view');
+    }
+    
+    if (depth===1) { 
+      card.style.transform = `translateY(${depth*8}px) scale(${1-depth*0.02})`; 
+      card.style.filter = "brightness(1.02)"; 
+      card.style.boxShadow = "0 10px 30px rgba(0,0,0,.45)"; 
+    } else { 
+      card.style.transform=`translateY(${depth*8}px) scale(${1-depth*0.02})`; 
+    }
+    
+    card.style.opacity=1-depth*0.05; 
+    card.style.zIndex = String(100 - depth);
+      
+    if(j===0) attachDrag(card);
+    stack.appendChild(card);
+  }
+  updateUndoBtn();
+}
+
+function show(screen){ 
+  if(screen==="swipe"){ 
+    $("#swipe").style.display="flex"; 
+    $("#result").style.display="none"; 
+    renderStack(); 
+  } else { 
+    $("#swipe").style.display="none"; 
+    $("#result").style.display="block"; 
+  } 
+}
+
+function renderBaseResult(r){
+  const typeMap = I18N[lang].typeText;
+  const rname = nameOf(r); 
+  const rating = `⭐ ${(r.rating || 0).toFixed(1)}`; 
+  const priceSymbols = '$'.repeat(Math.max(1, r.price || 1));
+  
+  const hero = $("#hero"); 
+  if (r.photoUrl) {
+    hero.src = r.photoUrl;
+    hero.style.display = "block";
+  } else {
+    hero.style.display = "none";
+  }
+  
+  const mainTypes = r.types.filter(t => typeMap[t]).slice(0, 3);
+  const typeChips = mainTypes.map(t => `<span class="chip">${typeMap[t] || t}</span>`).join("");
+  
+  const sponsorBadge = r.isSponsored ? `<div style="display:inline-block; background:linear-gradient(135deg, var(--sponsor), #ffed4e); color:#1b0f0a; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:800; margin-left:8px;">${t("sponsor")}</div>` : '';
+  
+  $("#resultBody").innerHTML = `<div class="title">${rname}${sponsorBadge}</div>
+    <div class="meta" style="margin:6px 0 10px;">${rating} • <span class="price">${priceSymbols}</span></div>
+    <div class="row">${typeChips}</div>
+    <div class="divider"></div>
+    <div style="color:#ffe7d6;">${r.address || ''}</div>`;
+    
+  $("#gEnrich").innerHTML = ""; 
+  
+  const hoursBadge = $("#hoursBadge");
+  const hoursBox = $("#hoursBox");
+  const toggleHours = $("#toggleHours");
+  
+  if (r.opening_hours?.open_now !== undefined) {
+    hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
+    hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
+  } else {
+    hoursBadge.textContent = "";
+  }
+  
+  if (r.opening_hours?.weekday_text) {
+    const hoursHTML = r.opening_hours.weekday_text.map(day => {
+      const parts = day.split(': ');
+      return `<div class="hours-row"><span class="hours-day">${parts[0]}</span><span>${parts[1] || ''}</span></div>`;
+    }).join('');
+    hoursBox.innerHTML = hoursHTML;
+    toggleHours.style.display = "block";
+  } else if (!CONFIG.DEMO_MODE && r.place_id && !r.isOnboarding) {
+    toggleHours.textContent = lang === 'zh' ? '載入營業時間...' : 'Loading hours...';
+    toggleHours.style.display = "block";
+    toggleHours.disabled = true;
+    
+    getPlaceDetails(r.place_id).then(details => {
+      if (details.opening_hours?.weekday_text) {
+        const hoursHTML = details.opening_hours.weekday_text.map(day => {
+          const parts = day.split(': ');
+          return `<div class="hours-row"><span class="hours-day">${parts[0]}</span><span>${parts[1] || ''}</span></div>`;
+        }).join('');
+        hoursBox.innerHTML = hoursHTML;
+        toggleHours.textContent = t("showHours");
+        toggleHours.disabled = false;
+        
+        r.opening_hours = details.opening_hours;
+        if (details.website) r.website = details.website;
+        if (details.photoUrl && !r.photoUrl) {
+          r.photoUrl = details.photoUrl;
+          hero.src = r.photoUrl;
+          hero.style.display = "block";
+        }
+      } else {
+        toggleHours.style.display = "none";
+      }
+    }).catch(() => {
+      toggleHours.style.display = "none";
+    });
+  } else {
+    hoursBox.innerHTML = "";
+    toggleHours.style.display = "none";
+  }
+  
+  toggleHours.onclick = () => {
+    hoursBox.classList.toggle("show");
+    toggleHours.textContent = hoursBox.classList.contains("show") ? t("hideHours") : t("showHours");
+  };
+  
+  hoursBox.classList.remove("show");
+  
+  $("#btnMap").disabled = false; 
+$("#btnMap").onclick = ()=> {
+  if (r.place_id) {
+    window.open(`https://www.google.com/maps/place/?q=place_id:${r.place_id}`, "_blank");
+  } else if (r.location) {
+    window.open(`https://www.google.com/maps/search/?api=1&query=${r.location.lat},${r.location.lng}`, "_blank");
+  } else {
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rname)}`, "_blank");
+  }
+    analytics.track('action', 'map_click', { place_id: r.id });
+    if (r.isSponsored) analytics.trackSponsor(r, 'map');
+  };
+  
+  const btnWebsite = $("#btnWebsite");
+  if (r.website) {
+    btnWebsite.style.display = "flex";
+    btnWebsite.href = r.website;
+    btnWebsite.onclick = () => {
+      analytics.track('action', 'website_click', { place_id: r.id });
+      if (r.isSponsored) analytics.trackSponsor(r, 'website');
+    };
+  } else {
+    btnWebsite.style.display = "none";
+  }
+  
+  analytics.track('result_view', r.id, { name: r.name });
+}
+
+function firstCharThumb(r){ return (nameOf(r)[0]||"•").toUpperCase(); }
+
+function renderFavs(){
+  const list = $("#favList"); 
+  list.innerHTML="";
+  if(!favs.length){ 
+    list.innerHTML = `<div class="empty">${t("emptyFav")}</div>`; 
+    return; 
+  }
+  favs.forEach(id=>{
+    const r = pool.find(x=>x.id===id) || (window.allDemoData && window.allDemoData.find(x=>x.id===id)); 
+    if(!r) return;
+    const row = document.createElement("div"); 
+    row.className="list-item";
+    const left = document.createElement("div"); 
+    left.className="list-left";
+    const thumb = document.createElement("div"); 
+    thumb.className="thumb"; 
+    if (r.photoUrl) {
+      const img = document.createElement("img");
+      img.src = r.photoUrl;
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = firstCharThumb(r);
+    }
+    const textWrap = document.createElement("div"); 
+    textWrap.style.minWidth="0";
+    textWrap.innerHTML = `<div class="list-title">${nameOf(r)}</div><div class="list-meta">⭐ ${(r.rating||0).toFixed(1)} · ${'$'.repeat(r.price||1)}</div>`;
+    left.appendChild(thumb); 
+    left.appendChild(textWrap);
+    const actions = document.createElement("div"); 
+    actions.className="row-actions";
+    const viewBtn = document.createElement("button"); 
+    viewBtn.className="i-btn"; 
+    viewBtn.textContent = t("view");
+    const delBtn = document.createElement("button"); 
+    delBtn.className="i-btn"; 
+    delBtn.textContent = t("del");
+    actions.appendChild(viewBtn); 
+    actions.appendChild(delBtn);
+    viewBtn.onclick = ()=>{ choose(r); closeAllModals(); };
+    delBtn.onclick = ()=>{ 
+      favs = favs.filter(x=>x!==id); 
+      localStorage.setItem(CONFIG.STORAGE_KEYS.favs, JSON.stringify(favs)); 
+      renderFavs(); 
+      analytics.track('fav_remove', r.id);
+    };
+    row.appendChild(left); 
+    row.appendChild(actions);
+    list.appendChild(row);
+  });
+}
+
+function addFav(r){ 
+  if(!favs.includes(r.id)){ 
+    favs.unshift(r.id); 
+    localStorage.setItem(CONFIG.STORAGE_KEYS.favs, JSON.stringify(favs)); 
+    analytics.track('fav_add', r.id);
+    showToast(t('favoriteAdded'), 'success');
+  } 
+}
+
+function renderHistory(){
+  const list = $("#histList"); 
+  list.innerHTML="";
+  if(!history.length){ 
+    list.innerHTML = `<div class="empty">${t("emptyHist")}</div>`; 
+    return; 
+  }
+  history.forEach(item=>{
+    const r = pool.find(x=>x.id===item.id) || (window.allDemoData && window.allDemoData.find(x=>x.id===item.id)); 
+    if(!r) return;
+    const row = document.createElement("div"); 
+    row.className="list-item";
+    const left = document.createElement("div"); 
+    left.className="list-left";
+    const thumb = document.createElement("div"); 
+    thumb.className="thumb"; 
+    if (r.photoUrl) {
+      const img = document.createElement("img");
+      img.src = r.photoUrl;
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = firstCharThumb(r);
+    }
+    const timeStr = new Date(item.ts).toLocaleString(lang==="zh"?"zh-TW":"en-US");
+    const textWrap = document.createElement("div"); 
+    textWrap.style.minWidth="0";
+    textWrap.innerHTML = `<div class="list-title">${nameOf(r)}</div><div class="list-meta">${timeStr}</div>`;
+    left.appendChild(thumb); 
+    left.appendChild(textWrap);
+    const actions = document.createElement("div"); 
+    actions.className="row-actions";
+    const viewBtn = document.createElement("button"); 
+    viewBtn.className="i-btn"; 
+    viewBtn.textContent = t("view");
+    const delBtn = document.createElement("button"); 
+    delBtn.className="i-btn"; 
+    delBtn.textContent = t("del");
+    actions.appendChild(viewBtn); 
+    actions.appendChild(delBtn);
+    viewBtn.onclick = ()=>{ choose(r); closeAllModals(); };
+    delBtn.onclick = ()=>{ 
+      history = history.filter(x=>x.ts!==item.ts); 
+      localStorage.setItem(CONFIG.STORAGE_KEYS.hist, JSON.stringify(history)); 
+      renderHistory(); 
+    };
+    row.appendChild(left); 
+    row.appendChild(actions);
+    list.appendChild(row);
+  });
+}
+
+// ====== MODALS ======
+function setFocusToCloseButton(modalId) {
+  setTimeout(() => {
+    let closeBtn;
+    if (modalId === 'modal') closeBtn = $("#btnClose");
+    else if (modalId === 'favModal') closeBtn = $("#favClose");
+    else if (modalId === 'histModal') closeBtn = $("#histClose");
+    if (closeBtn) closeBtn.focus();
+  }, 100);
+}
+
+function closeAllModals(){
+  document.querySelectorAll('.modal.active, .overlay.active').forEach(el => el.classList.remove('active'));
+  ['btnFavs', 'btnHistory', 'btnSettings'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.remove('active');
+  });
+  if(staged && !staged.applied){
+    lang = staged.original.lang;
+    currentTheme = staged.original.theme;
+    applyTheme(currentTheme);
+    renderText();
+  }
+  staged = null;
+}
+
+function openModal(){
+  closeAllModals();
+  staged = {
+    original: { lang, theme: currentTheme },
+    preview: { lang, theme: currentTheme },
+    filters: { 
+      openNow: filters.openNow, minRating: filters.minRating, priceLevel: filters.priceLevel,
+      distance: filters.distance, types: new Set(filters.types), cuisines: new Set(filters.cuisines) 
+    },
+    applied: false
+  };
+  $("#overlay").classList.add("active"); 
+  $("#modal").classList.add("active");
+  $("#btnSettings").classList.add("active");
+  syncUIFromStaged();
+  setFocusToCloseButton('modal');
+  analytics.track('modal_open', 'settings');
+}
+
+function syncUIFromStaged(){
+  $("#langSelModal").value = staged.preview.lang;
+  $("#themeSelect").value = staged.preview.theme;
+  
+  const toggle = $("#toggleOpenNow");
+  if (staged.filters.openNow) {
+    toggle.classList.add("active");
+    toggle.setAttribute("aria-checked", "true");
+  } else {
+    toggle.classList.remove("active");
+    toggle.setAttribute("aria-checked", "false");
+  }
+  
+  $("#minRating").value = staged.filters.minRating;
+  $("#ratingShow").textContent = staged.filters.minRating.toFixed(1) + "+";
+  $("#priceLevel").value = staged.filters.priceLevel;
+  $("#priceShow").textContent = '$'.repeat(staged.filters.priceLevel);
+  $("#distance").value = staged.filters.distance;
+  $("#distanceShow").textContent = "≤ " + staged.filters.distance + "m";
+  
+  renderText();
+  renderOptionPillsFromStaged();
+}
+
+function renderOptionPillsFromStaged(){
+  const typeKeys = ["restaurant", "cafe", "bar", "bakery", "meal_takeaway", "meal_delivery"];
+  const cuisineKeys = ["japanese", "chinese", "italian", "thai", "korean", "vietnamese", "western", "vegetarian", "seafood", "bbq", "hotpot", "noodles"];
+  
+  const typesRow = $("#typesRow"); 
+  const cuRow = $("#cuisineRow");
+  typesRow.innerHTML=""; 
+  cuRow.innerHTML="";
+  
+  const currentLang = staged ? staged.preview.lang : lang;
+  const typeMap = I18N[currentLang].typeText;
+  const cuMap = I18N[currentLang].cuText;
+  
+  typeKeys.forEach(k=>{
+    const btn = document.createElement("button"); 
+    btn.className="pill"; 
+    btn.textContent=typeMap[k] || k;
+    if(staged.filters.types.has(k)){ 
+      btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
+      btn.style.color="#220b07"; 
+    }
+    btn.onclick = ()=>{ 
+      if(staged.filters.types.has(k)) staged.filters.types.delete(k); 
+      else staged.filters.types.add(k); 
+      renderOptionPillsFromStaged(); 
+    };
+    typesRow.appendChild(btn);
+  });
+  
+  cuisineKeys.forEach(k=>{
+    const btn = document.createElement("button"); 
+    btn.className="pill"; 
+    btn.textContent=cuMap[k] || k;
+    if(staged.filters.cuisines.has(k)){ 
+      btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
+      btn.style.color="#220b07"; 
+    }
+    btn.onclick = ()=>{ 
+      if(staged.filters.cuisines.has(k)) staged.filters.cuisines.delete(k); 
+      else staged.filters.cuisines.add(k); 
+      renderOptionPillsFromStaged(); 
+    };
+    cuRow.appendChild(btn);
+  });
+}
+
+function clearAllFilters() {
+  if (!staged) return;
+  staged.filters.openNow = CONFIG.DEFAULT_FILTERS.openNow;
+  staged.filters.minRating = CONFIG.DEFAULT_FILTERS.minRating;
+  staged.filters.priceLevel = CONFIG.DEFAULT_FILTERS.priceLevel;
+  staged.filters.distance = CONFIG.DEFAULT_FILTERS.distance;
+  staged.filters.types.clear();
+  staged.filters.cuisines.clear();
+  syncUIFromStaged();
+  showToast(t('filtersCleared'), 'success');
+  analytics.track('filters', 'clear_all');
+}
+
+function openFavModal(){
+  closeAllModals();
+  $("#favOverlay").classList.add("active"); 
+  $("#favModal").classList.add("active");
+  $("#btnFavs").classList.add("active");
+  renderFavs();
+  setFocusToCloseButton('favModal');
+  analytics.track('modal_open', 'favorites');
+}
+
+function openHistModal(){
+  closeAllModals();
+  $("#histOverlay").classList.add("active"); 
+  $("#histModal").classList.add("active");
+  $("#btnHistory").classList.add("active");
+  renderHistory();
+  setFocusToCloseButton('histModal');
+  analytics.track('modal_open', 'history');
+}
+
+// ====== SWIPE ======
+function attachDrag(card){
+  const likeBadge = card.querySelector('.badge.like');
+  const nopeBadge = card.querySelector('.badge.nope');
+  const DIST_THRESHOLD = 90, FLICK_VX = 0.55, MAX_ROT = 18, SCALE_GAIN = 0.02;
+  let dragging=false, startX=0, lastX=0, lastT=0, vx=0;
+  
+  const onStart = (x)=>{ 
+    dragging=true; startX=lastX=x; lastT=performance.now(); 
+    card.style.transition="none"; 
+    if(likeBadge) likeBadge.style.opacity=0; 
+    if(nopeBadge) nopeBadge.style.opacity=0; 
+  };
+  
+  const onMove = (x)=>{
+    if(!dragging) return;
+    const now=performance.now(); 
+    const dx=x-lastX; const dt=Math.max(1, now-lastT); 
+    vx=dx/dt; lastX=x; lastT=now;
+    const offset = x - startX; 
+    const prog = Math.min(1, Math.abs(offset)/150); 
+    const rot=(offset/150)*MAX_ROT; 
+    const scale=1+prog*SCALE_GAIN;
+    card.style.transform = `translate(${offset}px,0) rotate(${rot}deg) scale(${scale})`; 
+    card.style.opacity = String(Math.max(0.35, 1 - Math.abs(offset)/320));
+    if(likeBadge && nopeBadge) {
+      if(offset>0){ likeBadge.style.opacity=prog; nopeBadge.style.opacity=0; } 
+      else { likeBadge.style.opacity=0; nopeBadge.style.opacity=prog; }
+    }
+  };
+  
+  const flyOut = (liked)=>{
+    const toX = liked ? 480 : -480;
+    card.style.transition = REDUCED ? "transform .18s ease-out" : "transform .18s cubic-bezier(.2,.8,.2,1)";
+    card.style.transform = `translate(${toX}px,0) rotate(${liked?15:-15}deg)`;
+    if(navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
+    setTimeout(()=> nextCard(liked), 160);
+  };
+  
+  const springBack = ()=>{ 
+    card.style.transition = REDUCED ? "transform .15s ease-out" : "transform .38s cubic-bezier(.2,.8,.2,1)"; 
+    card.style.transform = ""; card.style.opacity="1"; 
+    if(likeBadge) likeBadge.style.opacity=0; 
+    if(nopeBadge) nopeBadge.style.opacity=0; 
+  };
+  
+  const onEnd = ()=>{ 
+    if(!dragging) return; 
+    dragging=false; 
+    const total = lastX - startX; 
+    if (Math.abs(total) > DIST_THRESHOLD || Math.abs(vx) > FLICK_VX) flyOut(total>0); 
+    else springBack(); 
+  };
+  
+  const moveHandler = (e)=> onMove(e.clientX);
+  const upHandler = ()=>{ 
+    onEnd(); 
+    window.removeEventListener('mousemove', moveHandler); 
+    window.removeEventListener('mouseup', upHandler); 
+  };
+  
+  card.onmousedown = (e)=>{ 
+    onStart(e.clientX); 
+    window.addEventListener('mousemove', moveHandler, {passive:true}); 
+    window.addEventListener('mouseup', upHandler, {once:true}); 
+  };
+  card.ontouchstart = (e)=> onStart(e.touches[0].clientX);
+  card.ontouchmove = (e)=> onMove(e.touches[0].clientX);
+  card.ontouchend = onEnd;
+}
+
+// ====== FLOW ======
+function choose(r){
+  if (r.isOnboarding) {
+    hasSeenOnboarding = true;
+    localStorage.setItem(CONFIG.STORAGE_KEYS.onboarding, "true");
+    analytics.track('onboarding', 'complete');
+    index++;
+    renderStack();
+    return;
+  }
+  
+  current = r; 
+  history.unshift({id:r.id, ts: Date.now()}); 
+  history = history.slice(0,50); 
+  localStorage.setItem(CONFIG.STORAGE_KEYS.hist, JSON.stringify(history));
+  
+  const chosenIndex = pool.findIndex(item => item.id === r.id);
+  if (chosenIndex !== -1) { 
+    pool.splice(chosenIndex, 1); 
+    if (index >= pool.length && pool.length > 0) index = 0; 
+    if (pool.length === 0) index = 0; 
+  }
+  undoSlot = null; 
+  updateUndoBtn();
+  
+  analytics.trackSwipe(r, 'like');
+  recommender.learn(r, true);
+  if (r.isSponsored) analytics.trackSponsor(r, 'like');
+  
+  renderBaseResult(r); 
+  show("result");
+}
+
+function nextCard(liked){
+  const r = pool[index]; 
+  if(!r){ return; }
+  
+  if (r.isOnboarding) {
+    hasSeenOnboarding = true;
+    localStorage.setItem(CONFIG.STORAGE_KEYS.onboarding, "true");
+    analytics.track('onboarding', liked ? 'liked' : 'skipped');
+    index++;
+    renderStack();
+    return;
+  }
+  
+  if(!liked){ 
+    undoSlot = { indexBefore: index }; 
+    analytics.trackSwipe(r, 'skip');
+    recommender.learn(r, false);
+  } else { 
+    undoSlot = null; 
+  }
+  
+  if(liked){ choose(r); return; }
+  index = (index+1) % pool.length; 
+  renderStack(); 
+  updateUndoBtn();
+}
+
+function updateUndoBtn(){ $("#btnUndo").disabled = !undoSlot; }
+
+// ====== PULL TO REFRESH ======
+let pullStartY = 0;
+let isPulling = false;
+
+function setupPullToRefresh() {
+  const stack = $("#stack");
+  const pullIndicator = $("#pullRefresh");
+  
+  stack.addEventListener('touchstart', (e) => {
+    if (stack.scrollTop === 0) {
+      pullStartY = e.touches[0].clientY;
+      isPulling = true;
+    }
+  }, { passive: true });
+  
+  stack.addEventListener('touchmove', (e) => {
+    if (!isPulling) return;
+    const pullDistance = e.touches[0].clientY - pullStartY;
+    if (pullDistance > 0 && pullDistance < 100) {
+      pullIndicator.style.transform = `translate(-50%, ${pullDistance - 60}px)`;
+      pullIndicator.classList.add('active');
+    }
+  }, { passive: true });
+  
+  stack.addEventListener('touchend', async (e) => {
+    if (!isPulling) return;
+    isPulling = false;
+    const pullDistance = e.changedTouches[0].clientY - pullStartY;
+    
+    if (pullDistance > 80) {
+      showToast(t('refreshing'), 'info');
+      analytics.track('action', 'pull_refresh');
+      await buildPool();
+      renderStack();
+      showToast(t('refreshed'), 'success');
+    }
+    
+    pullIndicator.classList.remove('active');
+    pullIndicator.style.transform = 'translate(-50%, 0)';
+  });
+}
+
+// ====== KEYBOARD NAV ======
+function setupKeyboardNav() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const anyModalOpen = document.querySelector('.modal.active');
+      if (anyModalOpen) {
+        closeAllModals();
+        analytics.track('keyboard_action', 'escape');
+      }
+    }
+    
+    if (!document.querySelector('.modal.active')) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        $("#btnSkip").click();
+        analytics.track('keyboard_action', 'arrow_left');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        $("#btnChoose").click();
+        analytics.track('keyboard_action', 'arrow_right');
+      } else if (e.key === 'ArrowUp' && undoSlot) {
+        e.preventDefault();
+        $("#btnUndo").click();
+        analytics.track('keyboard_action', 'arrow_up');
+      }
+    }
+  });
+}
+
+// ====== INIT ======
+document.addEventListener('DOMContentLoaded', async ()=>{
+  console.log('[Jiasa] Initializing...');
+  
+  // Wait for Google Maps API
+  if (!CONFIG.DEMO_MODE) {
+    await new Promise(resolve => {
+      if (window.google && window.google.maps) {
+        resolve();
+      } else {
+        const checkInterval = setInterval(() => {
+          if (window.google && window.google.maps) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+        setTimeout(() => { clearInterval(checkInterval); resolve(); }, 10000);
+      }
+    });
+    if (window.google && window.google.maps) {
+      initPlacesService();
+      console.log('[Jiasa] Google Places Service initialized');
+    } else {
+      console.error('[Jiasa] Google Maps API failed to load');
+    }
+  }
+  
+  if (CONFIG.DEMO_MODE) {
+    window.allDemoData = generateDemoData();
+  } else {
+    window.allDemoData = [];
+  }
+  
+  applyTheme(currentTheme); 
+  renderText();
+  setupKeyboardNav();
+  setupPullToRefresh();
+  
+  analytics.track('app_open', navigator.userAgent);
+  
+  await buildPool();
+  renderStack();
+
+  // Event handlers
+  $("#btnSettings").addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if ($("#btnSettings").classList.contains('active')) closeAllModals();
+    else openModal();
+  });
+  
+  $("#btnFavs").addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if ($("#btnFavs").classList.contains('active')) closeAllModals();
+    else openFavModal();
+  });
+  
+  $("#btnHistory").addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if ($("#btnHistory").classList.contains('active')) closeAllModals();
+    else openHistModal();
+  });
+
+  $("#btnClose").addEventListener('click', closeAllModals);
+  $("#favClose").addEventListener('click', closeAllModals);
+  $("#histClose").addEventListener('click', closeAllModals);
+
+  $("#overlay").addEventListener('click', (e) => { if (e.target === $("#overlay")) closeAllModals(); });
+  $("#favOverlay").addEventListener('click', (e) => { if (e.target === $("#favOverlay")) closeAllModals(); });
+  $("#histOverlay").addEventListener('click', (e) => { if (e.target === $("#histOverlay")) closeAllModals(); });
+
+  $("#langSelModal").addEventListener("change", (e)=>{
+    if(!staged) return;
+    staged.preview.lang = e.target.value;
+    lang = staged.preview.lang;
+    renderText();
+    renderOptionPillsFromStaged();
+  });
+  
+  $("#themeSelect").addEventListener("change", (e)=>{
+    if(!staged) return;
+    staged.preview.theme = e.target.value;
+    currentTheme = staged.preview.theme;
+    applyTheme(staged.preview.theme);
+  });
+
+  $("#toggleOpenNow").addEventListener("click", ()=>{
+    if(!staged) return;
+    staged.filters.openNow = !staged.filters.openNow;
+    syncUIFromStaged();
+  });
+
+  $("#minRating").addEventListener("input", (e)=>{ 
+    if(!staged) return; 
+    staged.filters.minRating = +e.target.value; 
+    $("#ratingShow").textContent = (+e.target.value).toFixed(1) + "+"; 
+  });
+
+  $("#priceLevel").addEventListener("input", (e)=>{ 
+    if(!staged) return; 
+    staged.filters.priceLevel = +e.target.value; 
+    $("#priceShow").textContent = '$'.repeat(+e.target.value); 
+  });
+  
+  $("#distance").addEventListener("input", (e)=>{ 
+    if(!staged) return; 
+    staged.filters.distance = +e.target.value; 
+    $("#distanceShow").textContent = "≤ " + e.target.value + "m"; 
+  });
+
+  $("#btnClearFilters").addEventListener("click", clearAllFilters);
+
+  $("#applySettings").addEventListener("click", async ()=>{
+    if(!staged) return;
+    
+    lang = staged.preview.lang; 
+    localStorage.setItem(CONFIG.STORAGE_KEYS.lang, lang);
+    currentTheme = staged.preview.theme; 
+    localStorage.setItem(CONFIG.STORAGE_KEYS.theme, currentTheme); 
+    applyTheme(currentTheme);
+    
+    filters.openNow = staged.filters.openNow;
+    filters.minRating = staged.filters.minRating;
+    filters.priceLevel = staged.filters.priceLevel;
+    filters.distance = staged.filters.distance;
+    filters.types = new Set(staged.filters.types); 
+    filters.cuisines = new Set(staged.filters.cuisines);
+    
+    localStorage.setItem(CONFIG.STORAGE_KEYS.configured, "true"); 
+    saveFilters();
+    hasConfigured = true; 
+    
+    staged.applied = true; 
+    closeAllModals();
+    
+    show('swipe');
+    renderText();
+    
+    await buildPool();
+    renderStack();
+  });
+
+  $("#btnSkip").onclick = ()=> nextCard(false);
+  $("#btnChoose").onclick = ()=> nextCard(true);
+  $("#btnUndo").onclick = ()=>{ 
+    if(!undoSlot) return; 
+    index = undoSlot.indexBefore; 
+    undoSlot = null; 
+    renderStack(); 
+    updateUndoBtn();
+    analytics.track('action', 'undo');
+  };
+  $("#btnBack").onclick = ()=>{ show("swipe"); renderStack(); };
+  $("#btnFav").onclick = ()=>{ 
+    if(current){ addFav(current); } 
+    show("swipe"); 
+    renderStack(); 
+  };
+  
+  window.addEventListener('beforeunload', () => {
+    const stats = analytics.getStats();
+    analytics.track('session_end', 'app_close', stats);
+  });
+  
+  console.log('[Jiasa] Initialized successfully');
+});
+</script>
+</body>
+</html>
