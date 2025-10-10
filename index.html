@@ -1278,8 +1278,6 @@ function syncUIFromStaged(){
   
   $("#minRating").value = staged.filters.minRating;
   $("#ratingShow").textContent = staged.filters.minRating.toFixed(1) + "+";
-  $("#priceLevel").value = staged.filters.priceLevel;
-  $("#priceShow").textContent = '$'.repeat(staged.filters.priceLevel);
   $("#distance").value = staged.filters.distance;
   $("#distanceShow").textContent = "≤ " + staged.filters.distance + "m";
   
@@ -1290,15 +1288,34 @@ function syncUIFromStaged(){
 function renderOptionPillsFromStaged(){
   const typeKeys = ["restaurant", "cafe", "bar", "bakery", "meal_takeaway", "meal_delivery"];
   const cuisineKeys = ["japanese", "chinese", "italian", "thai", "korean", "vietnamese", "western", "vegetarian", "seafood", "bbq", "hotpot", "noodles"];
+  const priceKeys = [1, 2, 3, 4];
+  const priceLabels = ['$', '$$', '$$$', '$$$$'];
   
   const typesRow = $("#typesRow"); 
   const cuRow = $("#cuisineRow");
+  const priceRow = $("#priceRow");
   typesRow.innerHTML=""; 
   cuRow.innerHTML="";
+  priceRow.innerHTML="";
   
   const currentLang = staged ? staged.preview.lang : lang;
   const typeMap = I18N[currentLang].typeText;
   const cuMap = I18N[currentLang].cuText;
+  
+  priceKeys.forEach((level, idx)=>{
+    const btn = document.createElement("button"); 
+    btn.className="pill"; 
+    btn.textContent=priceLabels[idx];
+    if(staged.filters.priceLevel === level){ 
+      btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
+      btn.style.color="#220b07"; 
+    }
+    btn.onclick = ()=>{ 
+      staged.filters.priceLevel = level;
+      renderOptionPillsFromStaged(); 
+    };
+    priceRow.appendChild(btn);
+  });
   
   typeKeys.forEach(k=>{
     const btn = document.createElement("button"); 
@@ -1667,11 +1684,6 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     $("#ratingShow").textContent = (+e.target.value).toFixed(1) + "+"; 
   });
 
-  $("#priceLevel").addEventListener("input", (e)=>{ 
-    if(!staged) return; 
-    staged.filters.priceLevel = +e.target.value; 
-    $("#priceShow").textContent = '$'.repeat(+e.target.value); 
-  });
   
   $("#distance").addEventListener("input", (e)=>{ 
     if(!staged) return; 
