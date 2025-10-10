@@ -31,7 +31,7 @@
   .iconbtn.active{ color: var(--primary); border-color: color-mix(in oklab, var(--primary) 50%, white 30%); background: color-mix(in oklab, var(--primary) 12%, transparent); }
   
   main{flex:1 1 auto; display:flex; flex-direction:column; overflow:hidden;} 
-  .stack{position:relative; flex:1 1 auto; margin:12px; border-radius:16px; touch-action: pan-y; }
+  .stack{position:relative; flex:0 0 auto; margin:8px; border-radius:16px; touch-action: pan-y; }
   
   .pull-refresh{ position: absolute; top: -60px; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; background: var(--card); border: 1px solid var(--divider); border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: transform .2s ease, opacity .2s ease; opacity: 0; z-index: 10; }
   .pull-refresh.active{ opacity: 1; }
