@@ -102,7 +102,9 @@
   .modal-body{padding:0 14px 14px; max-height:70vh; overflow-y:auto; -webkit-overflow-scrolling: touch;} .label{font-size:12px; color:var(--muted); margin:8px 0 6px; text-transform:uppercase; letter-spacing:.08em;}
   .pill{background:var(--chip); border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:8px 12px; color:var(--fg); font-size:14px; cursor:pointer; transition: all .2s;}
   .pill:hover{background:color-mix(in srgb, var(--chip) 80%, white 20%); border-color:rgba(255,255,255,.28);}
-  input[type=range]{width:100%; accent-color:var(--primary-2);} 
+  input[type=range]{width:100%; -webkit-appearance:none; appearance:none; height:8px; border-radius:4px; outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; appearance:none; width:20px; height:20px; background:var(--primary); border-radius:50%; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,.3);}
+  input[type=range]::-moz-range-thumb{width:20px; height:20px; background:var(--primary); border-radius:50%; cursor:pointer; border:none; box-shadow:0 2px 4px rgba(0,0,0,.3);}
   input, select, textarea{ font-size: 16px; }
   .select{width:100%; background: var(--select-bg); color: var(--select-text); border: 1px solid var(--select-border); padding: 10px 12px; border-radius: 12px; font-size: 16px; appearance: none; outline: none;}
   .select option{background: var(--select-bg); color: var(--select-text);} .section{border-top:1px dashed var(--divider); margin-top:10px; padding-top:10px;} .section:first-child{border-top:none; margin-top:0; padding:0;}
@@ -1277,6 +1279,7 @@ function syncUIFromStaged(){
   
   $("#minRating").value = staged.filters.minRating;
   $("#ratingShow").textContent = staged.filters.minRating.toFixed(1) + "+";
+  updateRatingSlider($("#minRating"));
   $("#distance").value = staged.filters.distance;
   $("#distanceShow").textContent = "≤ " + staged.filters.distance + "m";
   
@@ -1681,7 +1684,16 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     if(!staged) return; 
     staged.filters.minRating = +e.target.value; 
     $("#ratingShow").textContent = (+e.target.value).toFixed(1) + "+"; 
+    updateRatingSlider(e.target);
   });
+
+    function updateRatingSlider(slider) {
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    const val = parseFloat(slider.value);
+    const percentage = ((val - min) / (max - min)) * 100;
+    slider.style.background = `linear-gradient(to right, var(--disabled) 0%, var(--disabled) ${percentage}%, var(--primary-2) ${percentage}%, var(--primary-2) 100%)`;
+  }
 
   
   $("#distance").addEventListener("input", (e)=>{ 
