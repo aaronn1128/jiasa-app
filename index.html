@@ -202,13 +202,13 @@
   <div class="filter-actions"><div class="label" style="margin:0;">篩選條件</div><button class="clear-filters" id="btnClearFilters">清除全部</button></div>
   <div class="toggle-wrapper"><span class="toggle-label" id="lblOpenNow">只顯示營業中</span><div class="toggle" id="toggleOpenNow" role="switch" aria-checked="false"><div class="toggle-knob"></div></div></div>
   <div class="label" id="lblMinRating">最低評分</div><div class="rating-display"><span>⭐</span><span class="rating-value" id="ratingShow">3.0+</span></div>
-  <input id="minRating" max="5" min="0" step="0.5" type="range" value="3"/><div class="hint" id="hintRating">只顯示評分高於此值的餐廳。</div>
-  <div class="label" id="lblPrice">價格範圍</div><div class="row" id="priceRow"></div><div class="hint" id="hintPrice">可選擇價格範圍</div>
+  <input id="minRating" max="5" min="0" step="0.5" type="range" value="3"/><div class="hint" id="hintRating" style="display:none;">只顯示評分高於此值的餐廳。</div>
+  <div class="label" id="lblPrice">價格範圍</div><div class="row" id="priceRow"></div><div class="hint" id="hintPrice" style="display:none;">可選擇價格範圍</div>
   <div class="label" id="lblDistance">搜尋距離(公尺)</div><div class="row"><span class="pill" id="distanceShow">≤ 1500m</span></div>
-  <input id="distance" max="5000" min="500" step="250" type="range" value="1500"/><div class="hint" id="hintDistance">需允許定位權限。</div>
+  <input id="distance" max="5000" min="500" step="250" type="range" value="1500"/><div class="hint" id="hintDistance" style="display:none;">需允許定位權限。</div>
 </div>
-<div class="section"><div class="label" id="lblTypes">餐廳類型</div><div class="row" id="typesRow"></div><div class="hint" id="hintTypes">可選擇多個類型，未選表示全部。</div></div>
-<div class="section"><div class="label" id="lblCuisine">料理風格(關鍵字)</div><div class="row" id="cuisineRow"></div><div class="hint" id="hintCuisine">作為搜尋關鍵字使用。</div></div>
+<div class="section"><div class="label" id="lblTypes">餐廳類型</div><div class="row" id="typesRow"></div><div class="hint" id="hintTypes" style="display:none;">可選擇多個類型，未選表示全部。</div></div>
+<div class="section"><div class="label" id="lblCuisine">料理風格(關鍵字)</div><div class="row" id="cuisineRow"></div><div class="hint" id="hintCuisine" style="display:none;">作為搜尋關鍵字使用。</div></div>
 <div class="section"><div class="label" id="lblLang">語言</div><select class="select" id="langSelModal"><option value="zh">繁體中文</option><option value="en">English</option></select></div>
 <div class="section"><div class="label" id="lblTheme">主題</div><select class="select" id="themeSelect"><option data-zh="經典" value="classic">Classic</option><option data-zh="摩卡" value="mocha">Mocha</option><option data-zh="橄欖" value="olive">Olive</option><option data-zh="櫻花" value="sakura">Sakura</option></select></div>
 <div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;"><button class="btn primary" id="applySettings" style="width:auto;"><span id="applyText">套用</span></button></div>
@@ -276,14 +276,14 @@ const I18N = {
     settings:"設定", language:"語言", skip:"略過", choose:"選這家", back:"返回",
     hintKeys:"提示：可以左右滑動卡片，或用 ← → 鍵操作。", 
     noMatches:"沒有符合條件的店家", retry:"重試", adjustFilters:"調整篩選",
-    hours:"營業時間", distance:"搜尋距離", favorites:"收藏清單", fav:"收藏", 
+    hours:"營業時間", distance:"搜尋距離（需允許定位權限。）", favorites:"收藏清單", fav:"收藏",
     history:"歷史紀錄", emptyFav:"尚未收藏", emptyHist:"尚無紀錄",
     like:"選這家", nope:"略過", openMap:"開地圖", website:"官網",
     nowOpen:"營業中", nowClose:"休息中", hoursUnknown:"營業時間未提供",
     view:"查看", del:"刪除", showHours:"顯示營業時間", hideHours:"收起營業時間",
     theme:"主題", apply:"套用", clearFilters:"清除全部",
-    openNow:"只顯示營業中", minRating:"最低評分", priceLevel:"價格範圍", 
-    types:"餐廳類型", cuisines:"料理風格(關鍵字)",
+    openNow:"只顯示營業中", minRating:"最低評分（只顯示評分高於此值的餐廳。）", priceLevel:"價格範圍（$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴）",
+    types:"餐廳類型（未選表示全部。）", cuisines:"料理風格（作為搜尋關鍵字使用。）",
     hintRating:"只顯示評分高於此值的餐廳。", 
     hintPrice:"$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴", 
     hintDistance:"需允許定位權限。", 
@@ -310,14 +310,14 @@ const I18N = {
     settings:"Settings", language:"Language", skip:"Skip", choose:"Choose", back:"Back",
     hintKeys:"Tip: swipe or use ← → keys.", 
     noMatches:"No matches", retry:"Retry", adjustFilters:"Adjust Filters",
-    hours:"Hours", distance:"Search Radius", favorites:"Favorites", fav:"Favorite", 
+    hours:"Hours", distance:"Search Radius (Location permission required.)", favorites:"Favorites", fav:"Favorite",
     history:"History", emptyFav:"No favorites yet", emptyHist:"No history yet",
     like:"Choose", nope:"Skip", openMap:"Open Map", website:"Website",
     nowOpen:"Open now", nowClose:"Closed", hoursUnknown:"Hours not available",
     view:"View", del:"Delete", showHours:"Show hours", hideHours:"Hide hours",
     theme:"Theme", apply:"Apply", clearFilters:"Clear All",
-    openNow:"Open Now Only", minRating:"Minimum Rating", priceLevel:"Price Range", 
-    types:"Restaurant Types", cuisines:"Cuisine Keywords",
+    openNow:"Open Now Only", minRating:"Minimum Rating (Show only places rated above this.)", priceLevel:"Price Range ($ Cheap | $$ Moderate | $$$ Expensive | $$$$ Very Expensive)",
+    types:"Restaurant Types (Select multiple or none for all.)", cuisines:"Cuisine Keywords (Used as search keywords.)",
     hintRating:"Show only places rated above this.", 
     hintPrice:"$ Cheap | $$ Moderate | $$$ Expensive | $$$$ Very Expensive",
     hintDistance:"Location permission required.", 
