@@ -201,8 +201,7 @@
   <div class="toggle-wrapper"><span class="toggle-label" id="lblOpenNow">只顯示營業中</span><div class="toggle" id="toggleOpenNow" role="switch" aria-checked="false"><div class="toggle-knob"></div></div></div>
   <div class="label" id="lblMinRating">最低評分</div><div class="rating-display"><span>⭐</span><span class="rating-value" id="ratingShow">3.0+</span></div>
   <input id="minRating" max="5" min="0" step="0.5" type="range" value="3"/><div class="hint" id="hintRating">只顯示評分高於此值的餐廳。</div>
-  <div class="label" id="lblPrice">價格範圍</div><div class="row"><span class="pill" id="priceShow">$$</span></div>
-  <input id="priceLevel" max="4" min="1" step="1" type="range" value="2"/><div class="hint" id="hintPrice">$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴</div>
+  <div class="label" id="lblPrice">價格範圍</div><div class="row" id="priceRow"></div><div class="hint" id="hintPrice">可選擇價格範圍</div>
   <div class="label" id="lblDistance">搜尋距離(公尺)</div><div class="row"><span class="pill" id="distanceShow">≤ 1500m</span></div>
   <input id="distance" max="5000" min="500" step="250" type="range" value="1500"/><div class="hint" id="hintDistance">需允許定位權限。</div>
 </div>
