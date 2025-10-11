@@ -301,7 +301,7 @@ const CONFIG = {
   DEFAULT_FILTERS: {
     openNow: false,
     minRating: 3,
-    priceLevel: 2,
+    priceLevel: [],  // ✅ 改成陣列
     distance: 1500,
     types: [],
     cuisines: []
@@ -399,6 +399,7 @@ let currentTheme = localStorage.getItem(CONFIG.STORAGE_KEYS.theme) || 'classic';
 let filters = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.filters) || JSON.stringify(CONFIG.DEFAULT_FILTERS));
 filters.types = new Set(filters.types || []);
 filters.cuisines = new Set(filters.cuisines || []);
+filters.priceLevel = new Set(filters.priceLevel || []); 
 
 let pool = []; 
 let index = 0; 
@@ -686,7 +687,7 @@ function t(k){ return I18N[lang][k]; }
 function nameOf(r){ return r.name || "Unknown"; }
 function saveFilters(){ 
   localStorage.setItem(CONFIG.STORAGE_KEYS.filters, JSON.stringify({ 
-    openNow: filters.openNow, minRating: filters.minRating, priceLevel: filters.priceLevel,
+    openNow: filters.openNow, minRating: filters.minRating, priceLevel: [...filters.priceLevel],  // ✅ 改這裡
     distance: filters.distance, types: [...filters.types], cuisines: [...filters.cuisines] 
   }));
 }
@@ -786,13 +787,13 @@ async function buildPool() {
     
     window.allDemoData = allPlaces;
     
-    pool = allPlaces.filter(r => {
-      if (filters.openNow && !r.opening_hours?.open_now) return false;
-      if (r.rating < filters.minRating) return false;
-      if (r.price > filters.priceLevel) return false;
-      if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
-      return true;
-    });
+  pool = allPlaces.filter(r => {
+    if (filters.openNow && !r.opening_hours?.open_now) return false;
+    if (r.rating < filters.minRating) return false;
+    if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;  // ✅ 新邏輯
+    if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
+    return true;
+  });
     
     const normalRestaurants = pool.filter(r => !r.isSponsored);
     const sponsoredRestaurants = pool.filter(r => r.isSponsored);
@@ -1294,7 +1295,7 @@ function openModal(){
     original: { lang, theme: currentTheme },
     preview: { lang, theme: currentTheme },
     filters: { 
-      openNow: filters.openNow, minRating: filters.minRating, priceLevel: filters.priceLevel,
+      openNow: filters.openNow, minRating: filters.minRating, priceLevel: new Set(filters.priceLevel),  // ✅ 改這裡
       distance: filters.distance, types: new Set(filters.types), cuisines: new Set(filters.cuisines) 
     },
     applied: false
@@ -1355,12 +1356,16 @@ function renderOptionPillsFromStaged(){
     const btn = document.createElement("button"); 
     btn.className="pill"; 
     btn.textContent=priceLabels[idx];
-    if(staged.filters.priceLevel === level){ 
+    if(staged.filters.priceLevel.has(level)){  // ✅ 複選判斷
       btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
       btn.style.color="#220b07"; 
     }
-    btn.onclick = ()=>{ 
-      staged.filters.priceLevel = level;
+    btn.onclick = ()=>{  // ✅ 複選邏輯
+      if(staged.filters.priceLevel.has(level)) {
+        staged.filters.priceLevel.delete(level);
+      } else {
+        staged.filters.priceLevel.add(level);
+      }
       renderOptionPillsFromStaged(); 
     };
     priceRow.appendChild(btn);
@@ -1403,7 +1408,7 @@ function clearAllFilters() {
   if (!staged) return;
   staged.filters.openNow = CONFIG.DEFAULT_FILTERS.openNow;
   staged.filters.minRating = CONFIG.DEFAULT_FILTERS.minRating;
-  staged.filters.priceLevel = CONFIG.DEFAULT_FILTERS.priceLevel;
+  staged.filters.priceLevel.clear();  // ✅ 改成 clear()
   staged.filters.distance = CONFIG.DEFAULT_FILTERS.distance;
   staged.filters.types.clear();
   staged.filters.cuisines.clear();
@@ -1772,12 +1777,12 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     localStorage.setItem(CONFIG.STORAGE_KEYS.theme, currentTheme); 
     applyTheme(currentTheme);
     
-    filters.openNow = staged.filters.openNow;
-    filters.minRating = staged.filters.minRating;
-    filters.priceLevel = staged.filters.priceLevel;
-    filters.distance = staged.filters.distance;
-    filters.types = new Set(staged.filters.types); 
-    filters.cuisines = new Set(staged.filters.cuisines);
+  filters.openNow = staged.filters.openNow;
+  filters.minRating = staged.filters.minRating;
+  filters.priceLevel = new Set(staged.filters.priceLevel);  // ✅ 改這裡
+  filters.distance = staged.filters.distance;
+  filters.types = new Set(staged.filters.types); 
+  filters.cuisines = new Set(staged.filters.cuisines);
     
     localStorage.setItem(CONFIG.STORAGE_KEYS.configured, "true"); 
     saveFilters();
