@@ -1122,18 +1122,19 @@ function renderBaseResult(r){
   
   hoursBox.classList.remove("show");
   
-  $("#btnMap").disabled = false; 
+$("#btnMap").disabled = false; 
 $("#btnMap").onclick = ()=> {
   if (r.place_id) {
-    window.open(`https://www.google.com/maps/place/?q=place_id:${r.place_id}`, "_blank");
+    // ✅ 修正：使用正確的 Google Maps URL 格式
+    window.open(`https://www.google.com/maps/search/?api=1&query=place_id:${r.place_id}`, "_blank");
   } else if (r.location) {
     window.open(`https://www.google.com/maps/search/?api=1&query=${r.location.lat},${r.location.lng}`, "_blank");
   } else {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rname)}`, "_blank");
   }
-    analytics.track('action', 'map_click', { place_id: r.id });
-    if (r.isSponsored) analytics.trackSponsor(r, 'map');
-  };
+  analytics.track('action', 'map_click', { place_id: r.id });
+  if (r.isSponsored) analytics.trackSponsor(r, 'map');
+};
   
   const btnWebsite = $("#btnWebsite");
   if (r.website) {
