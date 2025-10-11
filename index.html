@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="icon-192.png"/>
 <title>Jiasa</title>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW"></script>
+
 <style>
   :root { --bg:#1b0f0a; --fg:#fff6f0; --muted:#ffddc9; --primary:#ff8a3d; --primary-2:#ff5a5f; --card:#2b1912; --btn:#3a2219; --chip:#41251a;
     --disabled:#3a2a24; --disabled-text:#c8a99a; --select-bg:#2b1c14; --select-text:#f5e0c5; --select-border:#5a4638; --like:#6ee7a8; --nope:#fca5a5;
@@ -1810,6 +1811,15 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   
   console.log('[Jiasa] Initialized successfully');
 });
+</script>
+
+<!-- 新增：Service Worker 註冊 -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(console.error);
+  });
+}
 </script>
 </body>
 </html>
