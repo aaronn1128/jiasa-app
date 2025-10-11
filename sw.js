@@ -1,17 +1,18 @@
 // sw.js
-const CACHE = 'jiasa-v1';
-const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './styles.css',   // 沒這檔就刪掉
-  './app.js',       // 沒這檔就刪掉
-  './icon-192.png', // 依實際檔名調整
-  './icon-512.png'
-];
+const CACHE = 'jiasa-v2';
+const CORE = ['./', './index.html', './manifest.json'];
+const OPTIONAL = ['./styles.css', './app.js', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    // 必要檔（缺一不可）
+    await c.addAll(CORE);
+    // 可選檔（有就快取，沒有就略過）
+    for (const url of OPTIONAL) {
+      try { await c.add(url); } catch (_) { /* 忽略 404 */ }
+    }
+  })());
 });
 
 self.addEventListener('activate', (e) => {
@@ -23,7 +24,5 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
-  );
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });
