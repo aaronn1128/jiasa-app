@@ -537,16 +537,19 @@ async function fetchNearbyPlaces(location, radius = 1500) {
     }
     
     const types = filters.types.size > 0 ? Array.from(filters.types) : ['restaurant'];
-    const keyword = filters.cuisines.size > 0 ? Array.from(filters.cuisines).join(' ') : '';
+    const cuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [null];
     
-    if (types.length > 1) {
-      Promise.all(types.map(type => {
-        return new Promise((res) => {
+    // 建立所有搜尋組合：每個 type × 每個 cuisine
+    const searchTasks = [];
+    
+    types.forEach(type => {
+      cuisines.forEach(cuisine => {
+        searchTasks.push(new Promise((res) => {
           const request = {
             location: new google.maps.LatLng(location.lat, location.lng),
             radius: radius,
             type: type,
-            keyword: keyword || undefined
+            keyword: cuisine || undefined  // 如果沒選 cuisine，keyword 就是 undefined
           };
           
           placesService.nearbySearch(request, (results, status) => {
@@ -556,30 +559,19 @@ async function fetchNearbyPlaces(location, radius = 1500) {
               res([]);
             }
           });
-        });
-      })).then(resultsArrays => {
-        const allResults = resultsArrays.flat();
-        const uniqueResults = Array.from(new Map(allResults.map(p => [p.place_id, p])).values());
-        resolve(uniqueResults);
-      }).catch(reject);
-    } else {
-      const request = {
-        location: new google.maps.LatLng(location.lat, location.lng),
-        radius: radius,
-        type: types[0],
-        keyword: keyword || undefined
-      };
-      
-      placesService.nearbySearch(request, (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK) {
-          resolve(results || []);
-        } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-          resolve([]);
-        } else {
-          reject(new Error(`Places API error: ${status}`));
-        }
+        }));
       });
-    }
+    });
+    
+    // 執行所有搜尋任務並合併結果
+    Promise.all(searchTasks).then(resultsArrays => {
+      const allResults = resultsArrays.flat();
+      const uniqueResults = Array.from(new Map(allResults.map(p => [p.place_id, p])).values());
+      
+      // ✅ 打亂順序，避免同一搜尋組合的結果集中在一起
+      const shuffled = uniqueResults.sort(() => Math.random() - 0.5);
+      resolve(shuffled);
+    }).catch(reject);
   });
 }
 
