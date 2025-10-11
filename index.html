@@ -624,6 +624,7 @@ function transformPlaceData(place) {
       weekday_text: place.opening_hours.weekday_text || null
     } : null,
     website: place.website || null,
+    googleMapsUrl: place.url || null,  // ✅ 加上這行
     isSponsored: false
   };
 }
@@ -637,7 +638,7 @@ async function getPlaceDetails(placeId) {
     
     const request = {
       placeId: placeId,
-      fields: ['name', 'rating', 'price_level', 'formatted_address', 'geometry', 'photos', 'opening_hours', 'website', 'types', 'vicinity']
+      fields: ['name', 'rating', 'price_level', 'formatted_address', 'geometry', 'photos', 'opening_hours', 'website', 'types', 'vicinity', 'url']  // ✅ 加上 'url'
     };
     
     placesService.getDetails(request, (place, status) => {
@@ -1124,14 +1125,23 @@ function renderBaseResult(r){
   
 $("#btnMap").disabled = false; 
 $("#btnMap").onclick = ()=> {
-  if (r.place_id) {
-    // ✅ 修正：使用正確的 Google Maps URL 格式
-    window.open(`https://www.google.com/maps/search/?api=1&query=place_id:${r.place_id}`, "_blank");
-  } else if (r.location) {
+  // ✅ 優先使用 Google 官方提供的 URL（這會開啟完整餐廳資訊頁）
+  if (r.googleMapsUrl) {
+    window.open(r.googleMapsUrl, "_blank");
+  } 
+  // 備用方案 1：使用 place_id + 名稱
+  else if (r.place_id && r.name) {
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.name)}&query_place_id=${r.place_id}`, "_blank");
+  }
+  // 備用方案 2：使用座標
+  else if (r.location) {
     window.open(`https://www.google.com/maps/search/?api=1&query=${r.location.lat},${r.location.lng}`, "_blank");
-  } else {
+  } 
+  // 最後備用：用名稱搜尋
+  else {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rname)}`, "_blank");
   }
+  
   analytics.track('action', 'map_click', { place_id: r.id });
   if (r.isSponsored) analytics.trackSponsor(r, 'map');
 };
