@@ -119,6 +119,20 @@
   .hours-day{color:var(--muted);}
   .result-controls{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; position:relative; z-index:50;} 
   .result-actions{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; position:relative; z-index:50;}
+
+  /* ✅ 新增：讓結果頁可以滾動 */
+  #result {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #resultCard { margin-bottom: 12px; }
+  .result-controls, .result-actions { flex-shrink: 0; }
+
   .divider{border-top:1px dashed var(--divider); margin:12px 0;} .list-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px dashed var(--divider); color:var(--fg);}
   .list-left{display:flex; align-items:center; gap:10px; min-width:0;}
   .thumb{width:42px; height:42px; border-radius:8px; background:#40261c; border:1px solid var(--divider); display:flex; align-items:center; justify-content:center; font-weight:800; color:#ffd9c6; overflow:hidden;}
