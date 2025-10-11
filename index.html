@@ -19,8 +19,10 @@
     color:var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial; display:flex; flex-direction:column; overflow:hidden;
     border-left:1px solid rgba(255,255,255,.06); border-right:1px solid rgba(255,255,255,.06); 
     padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-  header{flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; background:linear-gradient(180deg, rgba(27,15,10,.95), rgba(27,15,10,.75)); position:sticky; top:0; z-index:5000; backdrop-filter: blur(6px);}
-  header h1{margin:0; font-size:clamp(16px, 2.8vw, 18px); display:flex; align-items:center; gap:8px;} .dot{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 12px var(--primary-2),0 0 24px rgba(255,90,95,.4);display:inline-block;}
+    header{flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; background:linear-gradient(180deg, rgba(27,15,10,.95), rgba(27,15,10,.75)); position:sticky; top:0; z-index:5000; backdrop-filter: blur(6px);}
+    header h1{margin:0; font-size:clamp(16px, 2.8vw, 18px); display:flex; align-items:center; gap:8px;}
+    header h1 img{height:32px; vertical-align:middle;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 12px var(--primary-2),0 0 24px rgba(255,90,95,.4);display:inline-block;}
   .right{display:flex; align-items:center; gap:6px;}
   .iconbtn{ --btn-bg: rgba(255,255,255,.06); --btn-border: rgba(255,255,255,.22); border:1px solid var(--btn-border); background: var(--btn-bg); color: var(--fg);
     padding:10px; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; transition: background .2s, border-color .2s, box-shadow .2s, color .2s;
@@ -191,7 +193,7 @@
 <div class="offline-badge" id="offlineBadge">離線模式</div>
 <div class="phone">
 <header>
-<h1><span class="dot"></span> Jiasa</h1>
+<h1><img src="./Jiasa_headerlogowordmark.png" alt="Jiasa"/></h1>
 <div class="right">
 <button aria-label="History" class="iconbtn" id="btnHistory"><svg fill="none" stroke="currentColor" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></button>
 <button aria-label="Favorites" class="iconbtn" id="btnFavs"><svg fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button>
