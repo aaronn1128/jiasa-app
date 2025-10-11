@@ -48,40 +48,34 @@
     flex-shrink: 0;
   }
 
-  .splash-bowl {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    background: linear-gradient(135deg, var(--primary), var(--primary-2));
-    border-radius: 50%;
-    opacity: 0;
-    animation: bowlFadeIn 0.6s ease-out forwards;
-  }
+.splash-bowl {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  opacity: 0;
+  animation: bowlFadeIn 0.6s ease-out forwards;
+}
 
-  .splash-arrow {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    opacity: 0;
-    animation: arrowZoomIn 0.4s 1.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    transform: translateX(-60px) scale(0.5);
-  }
+.splash-arrow {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  opacity: 0;
+  animation: arrowZoomIn 0.4s 1.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform: translateX(-60px) scale(0.5);
+}
 
-  .splash-arrow svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .splash-wordmark {
-    font-size: 48px;
-    font-weight: 900;
-    color: var(--fg);
-    letter-spacing: -0.02em;
-    opacity: 0;
-    animation: slideFromBehind 0.8s 0.6s ease-out forwards;
-    transform: translateX(-80px);
-    margin-left: 8px;
-  }
+.splash-wordmark {
+  height: 60px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0;
+  animation: slideFromBehind 0.8s 0.6s ease-out forwards;
+  transform: translateX(-80px);
+  margin-left: 8px;
+}
 
   @keyframes bowlFadeIn {
     0% { opacity: 0; transform: scale(0.8); }
@@ -278,14 +272,10 @@
 <div class="splash-screen" id="splashScreen">
   <div class="splash-logo-container">
     <div class="splash-icon-wrapper">
-      <div class="splash-bowl"></div>
-      <div class="splash-arrow">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M5 12h14M12 5l7 7-7 7" stroke="var(--fg)" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
+      <img src="bowl.png" class="splash-bowl" alt="碗">
+      <img src="arrow.png" class="splash-arrow" alt="箭頭">
     </div>
-    <div class="splash-wordmark">Jiasa</div>
+    <img src="jiasa-text.png" class="splash-wordmark" alt="Jiasa">
   </div>
 </div>
 
@@ -811,7 +801,7 @@ function showToast(message, type = 'info') {
     toast.style.opacity = '0';
     toast.style.transform = 'translate(-50%, 20px)';
     setTimeout(() => toast.remove(), 300);
-  }, 3000);
+  }, 5000);
 }
 
 function createOnboardingCard() {
