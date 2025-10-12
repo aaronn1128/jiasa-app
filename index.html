@@ -764,10 +764,11 @@ console.log(`[API] Fetched ${places?.length || 0} places`);
 
 // ✅ 立即檢查所有餐廳的營業狀態並快取結果
 if (places && places.length > 0) {
-  places.forEach(place => {
+  // ✅ 使用 Promise.all 等待所有 isOpen() 完成
+  await Promise.all(places.map(async (place) => {
     try {
       if (typeof place.isOpen === 'function') {
-        const isOpen = place.isOpen();
+        const isOpen = await place.isOpen();  // ✅ 加上 await
         // ✅ 將結果快取到 place 物件中，避免重複呼叫
         place._cachedIsOpen = isOpen;
         console.log(`[API] ${place.displayName}: isOpen = ${isOpen}`);
@@ -776,7 +777,7 @@ if (places && places.length > 0) {
       console.warn(`[API] Failed to check isOpen for ${place.displayName}:`, error);
       place._cachedIsOpen = null;
     }
-  });
+  }));
 }
 
 return places || [];
@@ -1665,7 +1666,6 @@ function openModal(){
   };
   $("#overlay").classList.add("active"); 
   $("#modal").classList.add("active");
-  $("#btnSettings").classList.add("active");
   syncUIFromStaged();
   setFocusToCloseButton('modal');
   analytics.track('modal_open', 'settings');
