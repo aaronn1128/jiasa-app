@@ -750,7 +750,7 @@ async function fetchNearbyPlaces(location, radius = 1500) {
   try {
 const request = {
   fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
-           'formattedAddress', 'types'],  // ✅ 先移除 opening hours
+           'formattedAddress', 'types', 'photos'],  // ✅ 加入 photos
   locationRestriction: {
     center: location,
     radius: radius,
