@@ -747,12 +747,13 @@ async function fetchNearbyPlaces(location, radius = 1500) {
   const { Place } = await google.maps.importLibrary("places");
   
   const types = filters.types.size > 0 ? Array.from(filters.types) : ['restaurant'];
-  const cuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [null];
+  const cuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [];
   
   const searchTasks = [];
   
-  types.forEach(type => {
-    cuisines.forEach(cuisine => {
+  // 如果沒有選擇料理風格，只按類型搜尋
+  if (cuisines.length === 0) {
+    types.forEach(type => {
       searchTasks.push(new Promise(async (resolve) => {
         try {
           const request = {
@@ -767,10 +768,6 @@ async function fetchNearbyPlaces(location, radius = 1500) {
             maxResultCount: 20,
           };
           
-          if (cuisine) {
-            request.textQuery = cuisine;
-          }
-          
           const { places } = await Place.searchNearby(request);
           resolve(places || []);
         } catch (error) {
@@ -779,7 +776,40 @@ async function fetchNearbyPlaces(location, radius = 1500) {
         }
       }));
     });
-  });
+  } else {
+    // 如果有選擇料理風格，使用 searchText
+    types.forEach(type => {
+      cuisines.forEach(cuisine => {
+        searchTasks.push(new Promise(async (resolve) => {
+          try {
+            const request = {
+              fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
+                       'formattedAddress', 'types', 'photos', 'regularOpeningHours', 
+                       'websiteURI', 'googleMapsURI'],
+              textQuery: `${cuisine} restaurant`,
+              locationBias: {
+                center: location,
+                radius: radius,
+              },
+              maxResultCount: 20,
+            };
+            
+            const { places } = await Place.searchText(request);
+            
+            // 過濾出符合類型的結果
+            const filtered = (places || []).filter(p => 
+              p.types && p.types.includes(type)
+            );
+            
+            resolve(filtered);
+          } catch (error) {
+            console.error('Search error:', error);
+            resolve([]);
+          }
+        }));
+      });
+    });
+  }
   
   const resultsArrays = await Promise.all(searchTasks);
   const allResults = resultsArrays.flat();
