@@ -683,6 +683,21 @@ async function fetchNearbyPlaces(location, radius = 1500) {
   return shuffled;
 }
 
+// ====== 價格等級轉換 ======
+function convertPriceLevel(priceLevel) {
+  if (!priceLevel) return 2;
+  
+  const priceMap = {
+    'PRICE_LEVEL_FREE': 1,
+    'PRICE_LEVEL_INEXPENSIVE': 1,
+    'PRICE_LEVEL_MODERATE': 2,
+    'PRICE_LEVEL_EXPENSIVE': 3,
+    'PRICE_LEVEL_VERY_EXPENSIVE': 4
+  };
+  
+  return priceMap[priceLevel] || 2;
+}
+
 function transformPlaceData(place) {
   const types = place.types || ['restaurant'];
   const cuisineGuess = [];
@@ -712,28 +727,12 @@ function transformPlaceData(place) {
     photoUrl = place.photos[0].getURI({ maxWidth: CONFIG.PHOTO_MAX_WIDTH });
   }
   
-  // ✅ 新增價格轉換函數
-  function convertPriceLevel(priceLevel) {
-    if (!priceLevel) return 2; // 預設中等價位
-  
-    const priceMap = {
-      'PRICE_LEVEL_FREE': 1,
-      'PRICE_LEVEL_INEXPENSIVE': 1,
-      'PRICE_LEVEL_MODERATE': 2,
-      'PRICE_LEVEL_EXPENSIVE': 3,
-      'PRICE_LEVEL_VERY_EXPENSIVE': 4
-    };
-  
-    return priceMap[priceLevel] || 2;
-  }
-
-  // ... 在 transformPlaceData 中
   return {
     id: place.id,
     place_id: place.id,
     name: name,
     rating: place.rating || 0,
-    price: convertPriceLevel(place.priceLevel),  // ✅ 使用轉換函數
+    price: convertPriceLevel(place.priceLevel),
     address: place.formattedAddress || '',
     types: types,
     cuisines: cuisineGuess,
