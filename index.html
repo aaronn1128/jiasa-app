@@ -875,13 +875,16 @@ function transformPlaceData(place) {
   if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
   
   // ✅ 新 API 的營業狀態處理
-  let openingHoursData = null;
-  if (place.regularOpeningHours) {
-    openingHoursData = {
-      open_now: place.regularOpeningHours.isOpen?.(),
-      weekday_text: place.regularOpeningHours.weekdayDescriptions || null
-    };
+  let openingHoursData = {
+    open_now: place.regularOpeningHours?.isOpen?.() ?? false,
+    weekday_text: place.regularOpeningHours?.weekdayDescriptions ?? []
+  };
+
+  // 🔧 若無 regularOpeningHours，但店家狀態是 OPERATIONAL，視為營業中
+  if (!place.regularOpeningHours && place.businessStatus === "OPERATIONAL") {
+    openingHoursData.open_now = true;
   }
+
   
   // ✅ 新 API 的照片處理
   let photoUrl = null;
