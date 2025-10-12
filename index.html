@@ -874,10 +874,14 @@ function transformPlaceData(place) {
   if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
   if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
   
-  // ✅ 新 API 的營業狀態處理
+  // ✅ 新 API 的營業狀態處理（包含 periods，供本地時間計算）
   let openingHoursData = {
     open_now: place.regularOpeningHours?.isOpen?.() ?? false,
-    weekday_text: place.regularOpeningHours?.weekdayDescriptions ?? []
+    weekday_text: place.regularOpeningHours?.weekdayDescriptions ?? [],
+    periods: (place.regularOpeningHours?.periods || []).map(p => ({
+      open: { day: p.open?.day, time: p.open?.hour?.toString().padStart(2,'0') + p.open?.minute?.toString().padStart(2,'0') },
+      close:{ day: p.close?.day, time: p.close?.hour?.toString().padStart(2,'0') + p.close?.minute?.toString().padStart(2,'0') }
+    }))
   };
 
   // 🔧 若無 regularOpeningHours，但店家狀態是 OPERATIONAL，視為營業中
@@ -999,6 +1003,37 @@ function showToast(message, type = 'info') {
 
 function createOnboardingCard() {
   return { id: '__onboarding__', isOnboarding: true, type: 'onboarding' };
+}
+
+// 依本地（台灣 +8）時間判斷營業中／休息中
+function getLocalOpenStatusByPeriods(opening_hours) {
+  if (!opening_hours || !opening_hours.periods || !opening_hours.periods.length) {
+    return { open: null, text: I18N[lang]?.hoursUnknown || "營業時間未提供", class: "muted" };
+  }
+
+  // 轉換為台灣時間（UTC+8）
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const taiwan = new Date(utc + 8 * 3600000);
+
+  const day = taiwan.getDay(); // 0 = Sunday
+  const mins = taiwan.getHours() * 60 + taiwan.getMinutes();
+
+  const today = opening_hours.periods.find(p => p?.open?.day === day);
+  if (!today || !today.open?.time || !today.close?.time) {
+    return { open: null, text: I18N[lang]?.hoursUnknown || "營業時間未提供", class: "muted" };
+  }
+
+  const toMins = t => parseInt(t.slice(0, 2)) * 60 + parseInt(t.slice(2));
+  const openMins = toMins(today.open.time);
+  const closeMins = toMins(today.close.time);
+
+  const isOpen = mins >= openMins && mins < closeMins;
+  return {
+    open: isOpen,
+    text: isOpen ? (I18N[lang]?.nowOpen || "營業中") : (I18N[lang]?.nowClose || "休息中"),
+    class: isOpen ? "open" : "closed"
+  };
 }
 
 // ====== SKELETON ======
@@ -1284,8 +1319,8 @@ function renderStack(){
         `<img src="${r.photoUrl}" class="card-photo" alt="${title}" loading="lazy"/>` : 
         `<div class="photo-placeholder">${ICONS.image}</div>`;
       
-      const openBadge = r.opening_hours?.open_now ? `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>` : 
-                        r.opening_hours?.open_now === false ? `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>` : '';
+      const st = getLocalOpenStatusByPeriods(r.opening_hours);
+      const openBadge = st.text ? `<span style="color:var(--${st.class === 'open' ? 'ok' : 'bad'}); font-size:12px;">● ${st.text}</span>` : '';
       
       const sponsorBadge = r.isSponsored ? `<div class="sponsor-badge">${t("sponsor")}</div>` : '';
       
@@ -1361,11 +1396,13 @@ function renderBaseResult(r){
   const hoursBox = $("#hoursBox");
   const toggleHours = $("#toggleHours");
   
-  if (r.opening_hours?.open_now !== undefined) {
-    hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
-    hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
+  const st = getLocalOpenStatusByPeriods(r.opening_hours);
+  if (st.text) {
+    hoursBadge.textContent = `● ${st.text}`;
+    hoursBadge.className = `hours-badge ${st.class}`;
   } else {
     hoursBadge.textContent = "";
+    hoursBadge.className = "hours-badge";
   }
   
   if (r.opening_hours?.weekday_text) {
