@@ -1107,13 +1107,29 @@ async function buildPool() {
     
     window.allDemoData = allPlaces;
     
-  pool = allPlaces.filter(r => {
-    if (filters.openNow && !r.opening_hours?.open_now) return false;
-    if (r.rating < filters.minRating) return false;
-    if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;  // ✅ 新邏輯
-    if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
-    return true;
-  });
+ // 進行篩選
+    pool = allPlaces.filter(r => {
+      // 1. 營業中篩選 (使用本地時間判斷，取代舊有的 r.opening_hours?.open_now)
+      if (filters.openNow) {
+        const status = getLocalOpenStatusByPeriods(r.opening_hours);
+        if (!status.open) {
+          return false; // 只有在本地時間判斷為「休息中」時才過濾掉
+        }
+      }
+
+      // 2. 最低評分篩選 (這是之前遺漏但必備的條件)
+      if (r.rating < filters.minRating) return false;
+
+      // 3. 價格範圍篩選
+      if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;
+
+      // 4. 餐廳類型篩選
+      if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
+      
+      return true;
+    });
+    
+    const normalRestaurants = pool.filter(r => !r.isSponsored);
     
     const normalRestaurants = pool.filter(r => !r.isSponsored);
     const sponsoredRestaurants = pool.filter(r => r.isSponsored);
