@@ -757,9 +757,12 @@ async function fetchNearbyPlaces(location, radius = 1500) {
       searchTasks.push(new Promise(async (resolve) => {
         try {
           const request = {
-            fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
-                     'formattedAddress', 'types', 'photos', 'regularOpeningHours', 
-                     'websiteURI', 'googleMapsURI'],
+            fields: [
+              'displayName', 'id', 'location', 'rating', 'priceLevel', 
+              'formattedAddress', 'types', 'photos', 
+              'currentOpeningHours', // ✅ 修正方案：優先使用 currentOpeningHours
+              'websiteURI', 'googleMapsURI'
+            ],
             locationRestriction: {
               center: location,
               radius: radius,
@@ -783,9 +786,12 @@ async function fetchNearbyPlaces(location, radius = 1500) {
         searchTasks.push(new Promise(async (resolve) => {
           try {
             const request = {
-              fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
-                       'formattedAddress', 'types', 'photos', 'regularOpeningHours', 
-                       'websiteURI', 'googleMapsURI'],
+              fields: [
+                'displayName', 'id', 'location', 'rating', 'priceLevel', 
+                'formattedAddress', 'types', 'photos', 
+                'currentOpeningHours', // ✅ 修正方案：優先使用 currentOpeningHours
+                'websiteURI', 'googleMapsURI'
+              ],
               textQuery: `${cuisine} restaurant`,
               locationBias: {
                 center: location,
@@ -853,12 +859,24 @@ function transformPlaceData(place) {
   if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
   if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
   
-  // ✅ 新 API 的營業狀態處理
+  // ✅ 修正方案：優先使用 currentOpeningHours，並安全調用 isOpen()
   let openingHoursData = null;
-  if (place.regularOpeningHours) {
+  const hoursSource = place.currentOpeningHours || place.regularOpeningHours;
+
+  if (hoursSource) {
+    let isCurrentlyOpen = null;
+    try {
+      // 確保 isOpen() 有被正確呼叫並取得布林值
+      if (typeof hoursSource.isOpen === 'function') {
+        isCurrentlyOpen = hoursSource.isOpen();
+      }
+    } catch (error) {
+      console.warn('Failed to get opening status:', error);
+    }
+    
     openingHoursData = {
-      open_now: place.regularOpeningHours.isOpen?.(),
-      weekday_text: place.regularOpeningHours.weekdayDescriptions || null
+      open_now: isCurrentlyOpen, // 儲存布林值或 null
+      weekday_text: hoursSource.weekdayDescriptions || null
     };
   }
   
@@ -900,7 +918,7 @@ async function getPlaceDetails(placeId) {
     
     await place.fetchFields({
       fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
-               'formattedAddress', 'types', 'photos', 'regularOpeningHours', 
+               'formattedAddress', 'types', 'photos', 'currentOpeningHours', 'regularOpeningHours', 
                'websiteURI', 'googleMapsURI']
     });
     
@@ -924,6 +942,7 @@ function generateDemoData() {
     const isSponsored = (i+1) % 7 === 0;
     
     const openingHours = {
+      // 示範資料，模擬 isOpen() 的結果
       open_now: i % 3 !== 0,
       weekday_text: [
         "星期一: 11:00 – 21:00", "星期二: 11:00 – 21:00", "星期三: 11:00 – 21:00",
@@ -1048,13 +1067,19 @@ async function buildPool() {
     
     window.allDemoData = allPlaces;
     
-  pool = allPlaces.filter(r => {
-    if (filters.openNow && !r.opening_hours?.open_now) return false;
-    if (r.rating < filters.minRating) return false;
-    if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;  // ✅ 新邏輯
-    if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
-    return true;
-  });
+    // ✅ 篩選邏輯修正：如果 openNow 是 null (代表 API 未回傳狀態) 就不進行過濾。
+    pool = allPlaces.filter(r => {
+      // 修正方案 3: 加入除錯訊息（可選，但有助於確認）
+      // console.log(`Restaurant: ${r.name}, open_now: ${r.opening_hours?.open_now}, filter: ${filters.openNow}`);
+      
+      // 只有當 filters.openNow 為 true 且 r.opening_hours?.open_now 嚴格為 false/undefined/null 時才過濾
+      if (filters.openNow && r.opening_hours?.open_now !== true) return false;
+      
+      if (r.rating < filters.minRating) return false;
+      if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;  // ✅ 新邏輯
+      if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
+      return true;
+    });
     
     const normalRestaurants = pool.filter(r => !r.isSponsored);
     const sponsoredRestaurants = pool.filter(r => r.isSponsored);
@@ -1260,8 +1285,14 @@ function renderStack(){
         `<img src="${r.photoUrl}" class="card-photo" alt="${title}" loading="lazy"/>` : 
         `<div class="photo-placeholder">${ICONS.image}</div>`;
       
-      const openBadge = r.opening_hours?.open_now ? `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>` : 
-                        r.opening_hours?.open_now === false ? `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>` : '';
+      // 使用 r.opening_hours?.open_now 判斷，因為 transformPlaceData 已保證它是布林值或 null
+      const openStatus = r.opening_hours?.open_now;
+      let openBadge = '';
+      if (openStatus === true) {
+        openBadge = `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>`;
+      } else if (openStatus === false) {
+        openBadge = `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>`;
+      }
       
       const sponsorBadge = r.isSponsored ? `<div class="sponsor-badge">${t("sponsor")}</div>` : '';
       
@@ -1337,9 +1368,14 @@ function renderBaseResult(r){
   const hoursBox = $("#hoursBox");
   const toggleHours = $("#toggleHours");
   
-  if (r.opening_hours?.open_now !== undefined) {
-    hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
-    hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
+  // 使用 transformPlaceData 處理後的 open_now (布林值或 null)
+  const openStatus = r.opening_hours?.open_now;
+  if (openStatus === true) {
+    hoursBadge.textContent = `● ${t("nowOpen")}`;
+    hoursBadge.className = "hours-badge open";
+  } else if (openStatus === false) {
+    hoursBadge.textContent = `● ${t("nowClose")}`;
+    hoursBadge.className = "hours-badge closed";
   } else {
     hoursBadge.textContent = "";
   }
@@ -1356,6 +1392,7 @@ function renderBaseResult(r){
     toggleHours.style.display = "block";
     toggleHours.disabled = true;
     
+    // 如果沒有詳細營業時間，嘗試重新獲取詳細資訊
     getPlaceDetails(r.place_id).then(details => {
       if (details.opening_hours?.weekday_text) {
         const hoursHTML = details.opening_hours.weekday_text.map(day => {
@@ -1366,12 +1403,23 @@ function renderBaseResult(r){
         toggleHours.textContent = t("showHours");
         toggleHours.disabled = false;
         
+        // 更新當前結果的緩存資料
         r.opening_hours = details.opening_hours;
         if (details.website) r.website = details.website;
         if (details.photoUrl && !r.photoUrl) {
           r.photoUrl = details.photoUrl;
           hero.src = r.photoUrl;
           hero.style.display = "block";
+        }
+        
+        // 更新即時營業狀態顯示
+        const detailOpenStatus = details.opening_hours?.open_now;
+        if (detailOpenStatus === true) {
+          hoursBadge.textContent = `● ${t("nowOpen")}`;
+          hoursBadge.className = "hours-badge open";
+        } else if (detailOpenStatus === false) {
+          hoursBadge.textContent = `● ${t("nowClose")}`;
+          hoursBadge.className = "hours-badge closed";
         }
       } else {
         toggleHours.style.display = "none";
@@ -1588,7 +1636,7 @@ function openModal(){
   };
   $("#overlay").classList.add("active"); 
   $("#modal").classList.add("active");
-  $("#btnSettings").classList.add("active");
+  $("#navSettings").classList.add("active"); // 確保導航按鈕在開啟設定時是啟動狀態
   syncUIFromStaged();
   setFocusToCloseButton('modal');
   analytics.track('modal_open', 'settings');
@@ -1707,7 +1755,7 @@ function openFavModal(){
   closeAllModals();
   $("#favOverlay").classList.add("active"); 
   $("#favModal").classList.add("active");
-  $("#btnFavs").classList.add("active");
+  $("#navFavs").classList.add("active");
   renderFavs();
   setFocusToCloseButton('favModal');
   analytics.track('modal_open', 'favorites');
@@ -1717,7 +1765,7 @@ function openHistModal(){
   closeAllModals();
   $("#histOverlay").classList.add("active"); 
   $("#histModal").classList.add("active");
-  $("#btnHistory").classList.add("active");
+  $("#navHistory").classList.add("active");
   renderHistory();
   setFocusToCloseButton('histModal');
   analytics.track('modal_open', 'history');
