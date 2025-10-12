@@ -477,7 +477,7 @@ const CONFIG = {
   GOOGLE_PLACES_API_KEY: 'AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI',
   API_TIMEOUT: 10000,
   API_MAX_RETRIES: 2,
-  CACHE_TTL: 60 * 60 * 1000,
+  CACHE_TTL: 4 * 60 * 60 * 1000,  // ✅ 改成 4 小時（餐廳資訊變動不大）
   PHOTO_MAX_WIDTH: 800,
   DEMO_MODE: false,
   STORAGE_KEYS: {
@@ -746,101 +746,29 @@ async function getUserLocation() {
 async function fetchNearbyPlaces(location, radius = 1500) {
   const { Place } = await google.maps.importLibrary("places");
   
-  const allTypes = ["restaurant", "cafe", "bar", "bakery", "meal_takeaway", "meal_delivery"];
-  const allCuisines = ["japanese", "chinese", "italian", "thai", "korean", "vietnamese", "western", "vegetarian", "seafood", "bbq", "hotpot", "noodles"];
-
-  const selectedTypes = filters.types.size > 0 ? Array.from(filters.types) : allTypes;
-  const selectedCuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [];
-  
-  const searchTasks = [];
-  
-  const isAllSelected = filters.types.size === allTypes.length && filters.cuisines.size === allCuisines.length;
-
-  // 檢查是否為最寬鬆模式或僅選擇類型（使用 searchNearby 模式）
-  if (selectedCuisines.length === 0 || isAllSelected) {
-    // 方案 1: 如果沒有選擇料理風格，或所有條件都選了（最寬鬆），則使用 searchNearby
-    // 為了避免多次請求，如果 types 也全部選了，我們只用 ['restaurant'] 進行一次廣泛搜索
-    const includedTypes = isAllSelected || filters.types.size === 0 ? ['restaurant'] : selectedTypes;
-
-    includedTypes.forEach(type => {
-      searchTasks.push(new Promise(async (resolve) => {
-        try {
-          const request = {
-            fields: [
-              'displayName', 'id', 'location', 'rating', 'priceLevel', 
-              'formattedAddress', 'types', 'photos', 
-              'currentOpeningHours', 
-              'websiteURI', 'googleMapsURI'
-            ],
-            locationRestriction: {
-              center: location,
-              radius: radius,
-            },
-            includedTypes: [type],
-            maxResultCount: 20,
-          };
-          
-          const { places } = await Place.searchNearby(request);
-          resolve(places || []);
-        } catch (error) {
-          console.error('SearchNearby error:', error);
-          resolve([]);
-        }
-      }));
-    });
+  // ✅ 策略：單次搜尋取得所有餐廳，前端篩選
+  // 這樣可以大幅減少 API 呼叫次數
+  try {
+    const request = {
+      fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
+               'formattedAddress', 'types', 'currentOpeningHours'],  // ✅ 改用 currentOpeningHours
+      locationRestriction: {
+        center: location,
+        radius: radius,
+      },
+      includedTypes: ['restaurant', 'cafe', 'bar', 'bakery'],  // ✅ 一次取得所有類型
+      maxResultCount: 20,  // ✅ 先用 20，可以改成 60（但成本會增加）
+    };
     
-  } else {
-    // 方案 2: 有明確選擇料理風格，但沒有全部選擇。使用 searchText 模式。
-    // 為了優化，我們只針對 Cuisine 進行一次 TextSearch，並用 LocationBias
-    // 這樣可以大幅減少 API 請求數量（從 72 次降為 1 次）
-
-    const queryCuisines = selectedCuisines.join(' OR '); // 組合 Cuisine 關鍵字
-    const textQuery = `${queryCuisines} restaurant`;
-
-    searchTasks.push(new Promise(async (resolve) => {
-      try {
-        const request = {
-          fields: [
-            'displayName', 'id', 'location', 'rating', 'priceLevel', 
-            'formattedAddress', 'types', 'photos', 
-            'currentOpeningHours', 
-            'websiteURI', 'googleMapsURI'
-          ],
-          textQuery: textQuery,
-          locationBias: {
-            center: location,
-            radius: radius,
-          },
-          maxResultCount: 20,
-        };
-        
-        const { places } = await Place.searchText(request);
-        
-        // 使用更寬鬆的過濾邏輯：只要結果符合選定的類型（如果使用者有選），就保留
-        const filtered = (places || []).filter(p => {
-          if (filters.types.size === 0) return true; // 如果沒有選 Types，則不過濾
-          return p.types && p.types.some(t => filters.types.has(t));
-        });
-        
-        resolve(filtered);
-      } catch (error) {
-        console.error('TextSearch error:', error);
-        resolve([]);
-      }
-    }));
+    const { places } = await Place.searchNearby(request);
+    console.log(`[API] Fetched ${places?.length || 0} places`);
+    
+    return places || [];
+    
+  } catch (error) {
+    console.error('Search error:', error);
+    throw error;
   }
-  
-  const resultsArrays = await Promise.all(searchTasks);
-  const allResults = resultsArrays.flat();
-  
-  // 去重
-  const uniqueResults = Array.from(
-    new Map(allResults.map(p => [p.id, p])).values()
-  );
-  
-  // 打亂順序
-  const shuffled = uniqueResults.sort(() => Math.random() - 0.5);
-  return shuffled;
 }
 
 // ====== 價格等級轉換 ======
@@ -872,25 +800,26 @@ function transformPlaceData(place) {
   if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
   if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
   
-  // ✅ 修正方案：優先使用 currentOpeningHours，並安全調用 isOpen()
+  // ✅ 新 API 的營業狀態處理
   let openingHoursData = null;
-  const hoursSource = place.currentOpeningHours || place.regularOpeningHours;
-
-  if (hoursSource) {
+  if (place.currentOpeningHours) {
+    // currentOpeningHours 有 isOpen() 方法可以即時判斷
     let isCurrentlyOpen = null;
     try {
-      // 確保 isOpen() 有被正確呼叫並取得布林值
-      if (typeof hoursSource.isOpen === 'function') {
-        isCurrentlyOpen = hoursSource.isOpen();
+      // isOpen() 是同步方法，會回傳 boolean 或 undefined
+      if (typeof place.currentOpeningHours.isOpen === 'function') {
+        isCurrentlyOpen = place.currentOpeningHours.isOpen();
       }
     } catch (error) {
-      console.warn('Failed to get opening status:', error);
+      console.warn(`[API] Failed to get opening status for ${place.displayName}:`, error);
     }
-    
+  
     openingHoursData = {
-      open_now: isCurrentlyOpen, // 儲存布林值或 null
-      weekday_text: hoursSource.weekdayDescriptions || null
+      open_now: isCurrentlyOpen,  // true/false/null
+      weekday_text: place.currentOpeningHours.weekdayDescriptions || null
     };
+  
+    console.log(`[API] ${place.displayName}: open_now = ${isCurrentlyOpen}`);
   }
   
   // ✅ 新 API 的照片處理
@@ -921,6 +850,7 @@ function transformPlaceData(place) {
   };
 }
 
+// ✅ 延遲載入詳細資訊：只在用戶選擇餐廳時才呼叫
 async function getPlaceDetails(placeId) {
   try {
     const { Place } = await google.maps.importLibrary("places");
@@ -929,16 +859,27 @@ async function getPlaceDetails(placeId) {
       id: placeId
     });
     
+    // ✅ 只請求還沒有的欄位（photos, website, full opening hours）
     await place.fetchFields({
-      fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
-               'formattedAddress', 'types', 'photos', 'currentOpeningHours', 'regularOpeningHours', 
-               'websiteURI', 'googleMapsURI']
+      fields: ['photos', 'websiteURI', 'googleMapsURI', 'currentOpeningHours']
     });
     
-    return transformPlaceData(place);
+    console.log(`[API] Fetched details for place: ${placeId}`);
+    
+    // 回傳補充資訊
+    return {
+      photos: place.photos || [],
+      photoUrl: place.photos?.[0]?.getURI({ maxWidth: CONFIG.PHOTO_MAX_WIDTH }) || null,
+      website: place.websiteURI || null,
+      googleMapsUrl: place.googleMapsURI || null,
+      opening_hours: place.currentOpeningHours ? {
+        open_now: place.currentOpeningHours.isOpen?.() ?? null,
+        weekday_text: place.currentOpeningHours.weekdayDescriptions || null
+      } : null
+    };
   } catch (error) {
     console.error('Place details error:', error);
-    throw error;
+    return null;  // 失敗時回傳 null，不中斷流程
   }
 }
 
@@ -955,7 +896,6 @@ function generateDemoData() {
     const isSponsored = (i+1) % 7 === 0;
     
     const openingHours = {
-      // 示範資料，模擬 isOpen() 的結果
       open_now: i % 3 !== 0,
       weekday_text: [
         "星期一: 11:00 – 21:00", "星期二: 11:00 – 21:00", "星期三: 11:00 – 21:00",
@@ -1080,16 +1020,59 @@ async function buildPool() {
     
     window.allDemoData = allPlaces;
     
-    // ✅ 篩選邏輯修正：如果 openNow 是 null (代表 API 未回傳狀態) 就不進行過濾。
-    pool = allPlaces.filter(r => {
-      // 只有當 filters.openNow 為 true 且 r.opening_hours?.open_now 嚴格為 false/undefined/null 時才過濾
-      if (filters.openNow && r.opening_hours?.open_now !== true) return false;
-      
-      if (r.rating < filters.minRating) return false;
-      if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;  // ✅ 新邏輯
-      if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
-      return true;
+// ✅ 前端篩選 - 加入除錯訊息
+pool = allPlaces.filter(r => {
+  // 營業中篩選
+  if (filters.openNow) {
+    console.log(`[Filter] ${r.name}: open_now = ${r.opening_hours?.open_now}`);
+    if (r.opening_hours?.open_now !== true) return false;
+  }
+  
+  // 評分篩選
+  if (r.rating < filters.minRating) return false;
+  
+  // 價格篩選
+  if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;
+  
+  // 類型篩選
+  if (filters.types.size > 0) {
+    const hasMatchingType = r.types.some(t => filters.types.has(t));
+    if (!hasMatchingType) return false;
+  }
+  
+  // 料理風格篩選（前端用名稱模糊比對）
+  if (filters.cuisines.size > 0) {
+    const nameLower = r.name.toLowerCase();
+    const addressLower = (r.address || '').toLowerCase();
+    const searchText = nameLower + ' ' + addressLower;
+    
+    const cuMap = {
+      japanese: ['japanese', 'sushi', 'ramen', '日式', '日本', '壽司', '拉麵'],
+      chinese: ['chinese', 'dim sum', '中式', '中國', '港式', '粵菜'],
+      italian: ['italian', 'pizza', 'pasta', '義式', '披薩', '義大利'],
+      thai: ['thai', '泰式', '泰國'],
+      korean: ['korean', 'bbq', '韓式', '韓國', '烤肉'],
+      vietnamese: ['vietnamese', 'pho', '越南', '河粉'],
+      western: ['western', 'steak', '西餐', '牛排'],
+      vegetarian: ['vegetarian', 'vegan', '蔬食', '素食'],
+      seafood: ['seafood', '海鮮'],
+      bbq: ['bbq', 'barbecue', '燒烤', '烤肉'],
+      hotpot: ['hotpot', 'hot pot', '火鍋'],
+      noodles: ['noodle', '麵', '麵食']
+    };
+    
+    const hasMatchingCuisine = Array.from(filters.cuisines).some(cuisine => {
+      const keywords = cuMap[cuisine] || [cuisine];
+      return keywords.some(keyword => searchText.includes(keyword.toLowerCase()));
     });
+    
+    if (!hasMatchingCuisine) return false;
+  }
+  
+  return true;
+});
+
+console.log(`[Filter] Results: ${pool.length} out of ${allPlaces.length} places`);
     
     const normalRestaurants = pool.filter(r => !r.isSponsored);
     const sponsoredRestaurants = pool.filter(r => r.isSponsored);
@@ -1149,8 +1132,8 @@ function showErrorState(message) {
       </svg>
       <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div>
       <button class="btn primary" onclick="retryBuildPool()" style="min-width:120px;">${t('retry')}</button>
-      <button class="btn" onclick="switchToDemoMode()" style="min-width:120px; margin-top:8px;">${lang === 'zh' ? '使用示範模式' : 'Use Demo Mode'}</button>
       <button class="btn" onclick="openModal()" style="min-width:120px;">${t('adjustFilters')}</button>
+      ${CONFIG.DEMO_MODE ? '' : '<button class="btn" onclick="switchToDemoMode()" style="min-width:120px; margin-top:8px;">' + (lang === 'zh' ? '使用示範模式' : 'Use Demo Mode') + '</button>'}
     </div>
   `;
 }
@@ -1295,14 +1278,8 @@ function renderStack(){
         `<img src="${r.photoUrl}" class="card-photo" alt="${title}" loading="lazy"/>` : 
         `<div class="photo-placeholder">${ICONS.image}</div>`;
       
-      // 使用 r.opening_hours?.open_now 判斷，因為 transformPlaceData 已保證它是布林值或 null
-      const openStatus = r.opening_hours?.open_now;
-      let openBadge = '';
-      if (openStatus === true) {
-        openBadge = `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>`;
-      } else if (openStatus === false) {
-        openBadge = `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>`;
-      }
+      const openBadge = r.opening_hours?.open_now ? `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>` : 
+                        r.opening_hours?.open_now === false ? `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>` : '';
       
       const sponsorBadge = r.isSponsored ? `<div class="sponsor-badge">${t("sponsor")}</div>` : '';
       
@@ -1378,14 +1355,9 @@ function renderBaseResult(r){
   const hoursBox = $("#hoursBox");
   const toggleHours = $("#toggleHours");
   
-  // 使用 transformPlaceData 處理後的 open_now (布林值或 null)
-  const openStatus = r.opening_hours?.open_now;
-  if (openStatus === true) {
-    hoursBadge.textContent = `● ${t("nowOpen")}`;
-    hoursBadge.className = "hours-badge open";
-  } else if (openStatus === false) {
-    hoursBadge.textContent = `● ${t("nowClose")}`;
-    hoursBadge.className = "hours-badge closed";
+  if (r.opening_hours?.open_now !== undefined) {
+    hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
+    hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
   } else {
     hoursBadge.textContent = "";
   }
@@ -1397,46 +1369,54 @@ function renderBaseResult(r){
     }).join('');
     hoursBox.innerHTML = hoursHTML;
     toggleHours.style.display = "block";
-  } else if (!CONFIG.DEMO_MODE && r.place_id && !r.isOnboarding) {
-    toggleHours.textContent = lang === 'zh' ? '載入營業時間...' : 'Loading hours...';
-    toggleHours.style.display = "block";
-    toggleHours.disabled = true;
-    
-    // 如果沒有詳細營業時間，嘗試重新獲取詳細資訊
-    getPlaceDetails(r.place_id).then(details => {
-      if (details.opening_hours?.weekday_text) {
-        const hoursHTML = details.opening_hours.weekday_text.map(day => {
-          const parts = day.split(': ');
-          return `<div class="hours-row"><span class="hours-day">${parts[0]}</span><span>${parts[1] || ''}</span></div>`;
-        }).join('');
-        hoursBox.innerHTML = hoursHTML;
-        toggleHours.textContent = t("showHours");
-        toggleHours.disabled = false;
-        
-        // 更新當前結果的緩存資料
-        r.opening_hours = details.opening_hours;
-        if (details.website) r.website = details.website;
-        if (details.photoUrl && !r.photoUrl) {
-          r.photoUrl = details.photoUrl;
-          hero.src = r.photoUrl;
-          hero.style.display = "block";
-        }
-        
-        // 更新即時營業狀態顯示
-        const detailOpenStatus = details.opening_hours?.open_now;
-        if (detailOpenStatus === true) {
-          hoursBadge.textContent = `● ${t("nowOpen")}`;
-          hoursBadge.className = "hours-badge open";
-        } else if (detailOpenStatus === false) {
-          hoursBadge.textContent = `● ${t("nowClose")}`;
-          hoursBadge.className = "hours-badge closed";
-        }
-      } else {
-        toggleHours.style.display = "none";
-      }
-    }).catch(() => {
+} else if (!CONFIG.DEMO_MODE && r.place_id && !r.isOnboarding) {
+  // ✅ 只在用戶點擊時才載入詳細資訊（cost down）
+  toggleHours.textContent = lang === 'zh' ? '載入營業時間...' : 'Loading hours...';
+  toggleHours.style.display = "block";
+  toggleHours.disabled = true;
+  
+  getPlaceDetails(r.place_id).then(details => {
+    if (!details) {
       toggleHours.style.display = "none";
-    });
+      return;
+    }
+    
+    // 更新所有補充資訊
+    if (details.opening_hours?.weekday_text) {
+      const hoursHTML = details.opening_hours.weekday_text.map(day => {
+        const parts = day.split(': ');
+        return `<div class="hours-row"><span class="hours-day">${parts[0]}</span><span>${parts[1] || ''}</span></div>`;
+      }).join('');
+      hoursBox.innerHTML = hoursHTML;
+      toggleHours.textContent = t("showHours");
+      toggleHours.disabled = false;
+      r.opening_hours = details.opening_hours;
+    } else {
+      toggleHours.style.display = "none";
+    }
+    
+    if (details.website) {
+      r.website = details.website;
+      $("#btnWebsite").style.display = "flex";
+      $("#btnWebsite").href = details.website;
+    }
+    
+    if (details.googleMapsUrl) {
+      r.googleMapsUrl = details.googleMapsUrl;
+    }
+    
+    if (details.photoUrl && !r.photoUrl) {
+      r.photoUrl = details.photoUrl;
+      hero.src = r.photoUrl;
+      hero.style.display = "block";
+    }
+    
+    console.log(`[API] Details loaded for ${r.name}`);
+    
+  }).catch(error => {
+    console.error('[API] Failed to load details:', error);
+    toggleHours.style.display = "none";
+  });
   } else {
     hoursBox.innerHTML = "";
     toggleHours.style.display = "none";
@@ -1646,7 +1626,7 @@ function openModal(){
   };
   $("#overlay").classList.add("active"); 
   $("#modal").classList.add("active");
-  $("#navSettings").classList.add("active");
+  $("#btnSettings").classList.add("active");
   syncUIFromStaged();
   setFocusToCloseButton('modal');
   analytics.track('modal_open', 'settings');
@@ -1765,7 +1745,7 @@ function openFavModal(){
   closeAllModals();
   $("#favOverlay").classList.add("active"); 
   $("#favModal").classList.add("active");
-  $("#navFavs").classList.add("active");
+  $("#btnFavs").classList.add("active");
   renderFavs();
   setFocusToCloseButton('favModal');
   analytics.track('modal_open', 'favorites');
@@ -1775,7 +1755,7 @@ function openHistModal(){
   closeAllModals();
   $("#histOverlay").classList.add("active"); 
   $("#histModal").classList.add("active");
-  $("#navHistory").classList.add("active");
+  $("#btnHistory").classList.add("active");
   renderHistory();
   setFocusToCloseButton('histModal');
   analytics.track('modal_open', 'history');
