@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icon-192.png"/>
 <title>Jiasa</title>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW&loading=async"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW"></script>
 
 <style>
   :root { --bg:#1b0f0a; --fg:#fff6f0; --muted:#ffddc9; --primary:#ff8a3d; --primary-2:#ff5a5f; --card:#2b1912; --btn:#3a2219; --chip:#41251a;
@@ -597,8 +597,16 @@ let placesService = null;
 let map = null;
 
 async function initPlacesService() {
-  if (window.google?.maps?.places) {
-    console.log('[Jiasa] New Places API ready');
+  try {
+    if (window.google?.maps?.importLibrary) {
+      // 預先載入 places library
+      await google.maps.importLibrary("places");
+      console.log('[Jiasa] New Places API ready');
+    } else {
+      console.warn('[Jiasa] importLibrary not available, waiting for API load...');
+    }
+  } catch (error) {
+    console.error('[Jiasa] Failed to initialize Places API:', error);
   }
 }
 
@@ -1789,23 +1797,29 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   // Wait for Google Maps API
   if (!CONFIG.DEMO_MODE) {
     await new Promise(resolve => {
-      if (window.google && window.google.maps) {
+      if (window.google?.maps?.importLibrary) {
         resolve();
       } else {
         const checkInterval = setInterval(() => {
-          if (window.google && window.google.maps) {
+          if (window.google?.maps?.importLibrary) {
             clearInterval(checkInterval);
             resolve();
           }
         }, 100);
-        setTimeout(() => { clearInterval(checkInterval); resolve(); }, 10000);
+        setTimeout(() => { 
+          clearInterval(checkInterval); 
+          console.warn('[Jiasa] API load timeout');
+          resolve(); 
+        }, 10000);
       }
     });
-    if (window.google && window.google.maps) {
-      initPlacesService();
+    
+    if (window.google?.maps?.importLibrary) {
+      await initPlacesService();
       console.log('[Jiasa] Google Places Service initialized');
     } else {
       console.error('[Jiasa] Google Maps API failed to load');
+      CONFIG.DEMO_MODE = true; // 自動切換到 demo 模式
     }
   }
   
