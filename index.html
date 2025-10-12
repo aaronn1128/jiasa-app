@@ -1586,9 +1586,9 @@ function openModal(){
     },
     applied: false
   };
-  $("#overlay").classList.add("active"); 
+$("#overlay").classList.add("active"); 
   $("#modal").classList.add("active");
-  $("#btnSettings").classList.add("active");
+  $("#navSettings").classList.add("active"); // <-- 將 btnSettings 改為 navSettings
   syncUIFromStaged();
   setFocusToCloseButton('modal');
   analytics.track('modal_open', 'settings');
