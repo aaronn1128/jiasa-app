@@ -8,11 +8,8 @@
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icon-192.png"/>
 <title>Jiasa</title>
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&loading=async"
-  async
-  defer>
-</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW"></script>
+
 <style>
   :root { --bg:#1b0f0a; --fg:#fff6f0; --muted:#ffddc9; --primary:#ff8a3d; --primary-2:#ff5a5f; --card:#2b1912; --btn:#3a2219; --chip:#41251a;
     --disabled:#3a2a24; --disabled-text:#c8a99a; --select-bg:#2b1c14; --select-text:#f5e0c5; --select-border:#5a4638; --like:#6ee7a8; --nope:#fca5a5;
@@ -602,20 +599,10 @@ const I18N = {
 // ====== STATE ======
 let lang = localStorage.getItem(CONFIG.STORAGE_KEYS.lang) || "zh";
 let currentTheme = localStorage.getItem(CONFIG.STORAGE_KEYS.theme) || 'classic';
-let filtersRaw = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.filters) || JSON.stringify(CONFIG.DEFAULT_FILTERS));
-
-// 確保都是「陣列」，防止舊版本存成字串、數字、null 等非可迭代型別
-const asArray = (v) => Array.isArray(v) ? v : (v == null ? [] : [v]);
-
-let filters = {
-  openNow: !!filtersRaw.openNow,
-  minRating: Number(filtersRaw.minRating ?? CONFIG.DEFAULT_FILTERS.minRating),
-  distance: Number(filtersRaw.distance ?? CONFIG.DEFAULT_FILTERS.distance),
-  // 這三個一定轉成 Set 之前先轉乾淨的陣列
-  types: new Set(asArray(filtersRaw.types)),
-  cuisines: new Set(asArray(filtersRaw.cuisines)),
-  priceLevel: new Set(asArray(filtersRaw.priceLevel)),
-};
+let filters = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.filters) || JSON.stringify(CONFIG.DEFAULT_FILTERS));
+filters.types = new Set(filters.types || []);
+filters.cuisines = new Set(filters.cuisines || []);
+filters.priceLevel = new Set(filters.priceLevel || []); 
 
 let pool = []; 
 let index = 0; 
@@ -635,22 +622,14 @@ class Analytics {
     this.events = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.analytics) || "[]");
     this.session = { id: Date.now(), start: Date.now(), events: [] };
   }
-track(event, label, payload = {}) {
-  const record = {
-    event,
-    label,
-    timestamp: Date.now(),
-    session_id: this.session.id,
-    lang,
-    theme: currentTheme,
-    ...payload
-  };
-  this.session.events.push(record);
-  this.events.push(record);
-  if (this.events.length > 1000) this.events = this.events.slice(-1000);
-  localStorage.setItem(CONFIG.STORAGE_KEYS.analytics, JSON.stringify(this.events));
-  console.log(`[Analytics] ${event}:`, label, payload);
-}
+  track(event, label, payload = {}) {
+    const record = { event, label, timestamp: Date.now(), session_id: this.session.id, lang, theme: currentTheme, ...payload };
+    this.session.events.push(record);
+    this.events.push(record);
+    if (this.events.length > 1000) this.events = this.events.slice(-1000);
+    localStorage.setItem(CONFIG.STORAGE_KEYS.analytics, JSON.stringify(this.events));
+    console.log(`[Analytics] ${event}:`, label, payload);
+  }
   trackSwipe(restaurant, direction) {
     this.track(`swipe_${direction}`, restaurant.id, { place_id: restaurant.place_id, name: restaurant.name, rating: restaurant.rating, price: restaurant.price, types: restaurant.types, isSponsored: restaurant.isSponsored });
   }
@@ -798,7 +777,7 @@ async function fetchNearbyPlaces(location, radius = 1500) {
       }));
     });
   } else {
-    // 如果有選擇料理風格，使用 searchByText（← 這裡換方法名）
+    // 如果有選擇料理風格，使用 searchText
     types.forEach(type => {
       cuisines.forEach(cuisine => {
         searchTasks.push(new Promise(async (resolve) => {
@@ -815,8 +794,7 @@ async function fetchNearbyPlaces(location, radius = 1500) {
               maxResultCount: 20,
             };
             
-            // 這行改成 searchByText
-            const { places } = await Place.searchByText(request);
+            const { places } = await Place.searchText(request);
             
             // 過濾出符合類型的結果
             const filtered = (places || []).filter(p => 
@@ -845,6 +823,7 @@ async function fetchNearbyPlaces(location, radius = 1500) {
   const shuffled = uniqueResults.sort(() => Math.random() - 0.5);
   return shuffled;
 }
+
 // ====== 價格等級轉換 ======
 function convertPriceLevel(priceLevel) {
   if (!priceLevel) return 2;
@@ -874,21 +853,14 @@ function transformPlaceData(place) {
   if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
   if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
   
-  // ✅ 新 API 的營業狀態處理（包含 periods，供本地時間計算）
-  let openingHoursData = {
-    open_now: place.regularOpeningHours?.isOpen?.() ?? false,
-    weekday_text: place.regularOpeningHours?.weekdayDescriptions ?? [],
-    periods: (place.regularOpeningHours?.periods || []).map(p => ({
-      open: { day: p.open?.day, time: p.open?.hour?.toString().padStart(2,'0') + p.open?.minute?.toString().padStart(2,'0') },
-      close:{ day: p.close?.day, time: p.close?.hour?.toString().padStart(2,'0') + p.close?.minute?.toString().padStart(2,'0') }
-    }))
-  };
-
-  // 🔧 若無 regularOpeningHours，但店家狀態是 OPERATIONAL，視為營業中
-  if (!place.regularOpeningHours && place.businessStatus === "OPERATIONAL") {
-    openingHoursData.open_now = true;
+  // ✅ 新 API 的營業狀態處理
+  let openingHoursData = null;
+  if (place.regularOpeningHours) {
+    openingHoursData = {
+      open_now: place.regularOpeningHours.isOpen?.(),
+      weekday_text: place.regularOpeningHours.weekdayDescriptions || null
+    };
   }
-
   
   // ✅ 新 API 的照片處理
   let photoUrl = null;
@@ -1005,37 +977,6 @@ function createOnboardingCard() {
   return { id: '__onboarding__', isOnboarding: true, type: 'onboarding' };
 }
 
-// 依本地（台灣 +8）時間判斷營業中／休息中
-function getLocalOpenStatusByPeriods(opening_hours) {
-  if (!opening_hours || !opening_hours.periods || !opening_hours.periods.length) {
-    return { open: null, text: I18N[lang]?.hoursUnknown || "營業時間未提供", class: "muted" };
-  }
-
-  // 轉換為台灣時間（UTC+8）
-  const now = new Date();
-  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const taiwan = new Date(utc + 8 * 3600000);
-
-  const day = taiwan.getDay(); // 0 = Sunday
-  const mins = taiwan.getHours() * 60 + taiwan.getMinutes();
-
-  const today = opening_hours.periods.find(p => p?.open?.day === day);
-  if (!today || !today.open?.time || !today.close?.time) {
-    return { open: null, text: I18N[lang]?.hoursUnknown || "營業時間未提供", class: "muted" };
-  }
-
-  const toMins = t => parseInt(t.slice(0, 2)) * 60 + parseInt(t.slice(2));
-  const openMins = toMins(today.open.time);
-  const closeMins = toMins(today.close.time);
-
-  const isOpen = mins >= openMins && mins < closeMins;
-  return {
-    open: isOpen,
-    text: isOpen ? (I18N[lang]?.nowOpen || "營業中") : (I18N[lang]?.nowClose || "休息中"),
-    class: isOpen ? "open" : "closed"
-  };
-}
-
 // ====== SKELETON ======
 function showSkeletonLoader() {
   const stack = $("#stack");
@@ -1107,29 +1048,13 @@ async function buildPool() {
     
     window.allDemoData = allPlaces;
     
- // 進行篩選
-    pool = allPlaces.filter(r => {
-      // 1. 營業中篩選 (使用本地時間判斷，取代舊有的 r.opening_hours?.open_now)
-      if (filters.openNow) {
-        const status = getLocalOpenStatusByPeriods(r.opening_hours);
-        if (!status.open) {
-          return false; // 只有在本地時間判斷為「休息中」時才過濾掉
-        }
-      }
-
-      // 2. 最低評分篩選 (這是之前遺漏但必備的條件)
-      if (r.rating < filters.minRating) return false;
-
-      // 3. 價格範圍篩選
-      if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;
-
-      // 4. 餐廳類型篩選
-      if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
-      
-      return true;
-    });
-    
-    const normalRestaurants = pool.filter(r => !r.isSponsored);
+  pool = allPlaces.filter(r => {
+    if (filters.openNow && !r.opening_hours?.open_now) return false;
+    if (r.rating < filters.minRating) return false;
+    if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;  // ✅ 新邏輯
+    if (filters.types.size > 0 && !r.types.some(t => filters.types.has(t))) return false;
+    return true;
+  });
     
     const normalRestaurants = pool.filter(r => !r.isSponsored);
     const sponsoredRestaurants = pool.filter(r => r.isSponsored);
@@ -1335,8 +1260,8 @@ function renderStack(){
         `<img src="${r.photoUrl}" class="card-photo" alt="${title}" loading="lazy"/>` : 
         `<div class="photo-placeholder">${ICONS.image}</div>`;
       
-      const st = getLocalOpenStatusByPeriods(r.opening_hours);
-      const openBadge = st.text ? `<span style="color:var(--${st.class === 'open' ? 'ok' : 'bad'}); font-size:12px;">● ${st.text}</span>` : '';
+      const openBadge = r.opening_hours?.open_now ? `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>` : 
+                        r.opening_hours?.open_now === false ? `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>` : '';
       
       const sponsorBadge = r.isSponsored ? `<div class="sponsor-badge">${t("sponsor")}</div>` : '';
       
@@ -1412,13 +1337,11 @@ function renderBaseResult(r){
   const hoursBox = $("#hoursBox");
   const toggleHours = $("#toggleHours");
   
-  const st = getLocalOpenStatusByPeriods(r.opening_hours);
-  if (st.text) {
-    hoursBadge.textContent = `● ${st.text}`;
-    hoursBadge.className = `hours-badge ${st.class}`;
+  if (r.opening_hours?.open_now !== undefined) {
+    hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
+    hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
   } else {
     hoursBadge.textContent = "";
-    hoursBadge.className = "hours-badge";
   }
   
   if (r.opening_hours?.weekday_text) {
@@ -1663,9 +1586,9 @@ function openModal(){
     },
     applied: false
   };
-$("#overlay").classList.add("active"); 
+  $("#overlay").classList.add("active"); 
   $("#modal").classList.add("active");
-  $("#navSettings").classList.add("active"); // <-- 將 btnSettings 改為 navSettings
+  $("#btnSettings").classList.add("active");
   syncUIFromStaged();
   setFocusToCloseButton('modal');
   analytics.track('modal_open', 'settings');
@@ -1784,7 +1707,7 @@ function openFavModal(){
   closeAllModals();
   $("#favOverlay").classList.add("active"); 
   $("#favModal").classList.add("active");
-  $("#navFavs").classList.add("active");
+  $("#btnFavs").classList.add("active");
   renderFavs();
   setFocusToCloseButton('favModal');
   analytics.track('modal_open', 'favorites');
@@ -1794,7 +1717,7 @@ function openHistModal(){
   closeAllModals();
   $("#histOverlay").classList.add("active"); 
   $("#histModal").classList.add("active");
-  $("#navHistory").classList.add("active");
+  $("#btnHistory").classList.add("active");
   renderHistory();
   setFocusToCloseButton('histModal');
   analytics.track('modal_open', 'history');
