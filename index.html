@@ -749,21 +749,38 @@ async function fetchNearbyPlaces(location, radius = 1500) {
   // ✅ 策略：單次搜尋取得所有餐廳，前端篩選
   // 這樣可以大幅減少 API 呼叫次數
   try {
-    const request = {
-      fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
-               'formattedAddress', 'types', 'currentOpeningHours'],  // ✅ 改用 currentOpeningHours
-      locationRestriction: {
-        center: location,
-        radius: radius,
-      },
-      includedTypes: ['restaurant', 'cafe', 'bar', 'bakery'],  // ✅ 一次取得所有類型
-      maxResultCount: 20,  // ✅ 先用 20，可以改成 60（但成本會增加）
-    };
+const request = {
+  fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
+           'formattedAddress', 'types'],  // ✅ 先移除 opening hours
+  locationRestriction: {
+    center: location,
+    radius: radius,
+  },
+  includedTypes: ['restaurant', 'cafe', 'bar', 'bakery'],
+  maxResultCount: 20,
+};
     
-    const { places } = await Place.searchNearby(request);
-    console.log(`[API] Fetched ${places?.length || 0} places`);
-    
-    return places || [];
+const { places } = await Place.searchNearby(request);
+console.log(`[API] Fetched ${places?.length || 0} places`);
+
+// ✅ 立即檢查所有餐廳的營業狀態並快取結果
+if (places && places.length > 0) {
+  places.forEach(place => {
+    try {
+      if (typeof place.isOpen === 'function') {
+        const isOpen = place.isOpen();
+        // ✅ 將結果快取到 place 物件中，避免重複呼叫
+        place._cachedIsOpen = isOpen;
+        console.log(`[API] ${place.displayName}: isOpen = ${isOpen}`);
+      }
+    } catch (error) {
+      console.warn(`[API] Failed to check isOpen for ${place.displayName}:`, error);
+      place._cachedIsOpen = null;
+    }
+  });
+}
+
+return places || [];
     
   } catch (error) {
     console.error('Search error:', error);
@@ -800,29 +817,30 @@ function transformPlaceData(place) {
   if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
   if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
   
-  // ✅ 新 API 的營業狀態處理
-  let openingHoursData = null;
-  if (place.currentOpeningHours) {
-    // currentOpeningHours 有 isOpen() 方法可以即時判斷
-    let isCurrentlyOpen = null;
-    try {
-      // isOpen() 是同步方法，會回傳 boolean 或 undefined
-      if (typeof place.currentOpeningHours.isOpen === 'function') {
-        isCurrentlyOpen = place.currentOpeningHours.isOpen();
-      }
-    } catch (error) {
-      console.warn(`[API] Failed to get opening status for ${place.displayName}:`, error);
+// ✅ 優先使用快取結果，避免重複呼叫 API
+let isCurrentlyOpen = null;
+if ('_cachedIsOpen' in place) {
+  // 使用之前快取的結果
+  isCurrentlyOpen = place._cachedIsOpen;
+} else {
+  // 如果沒有快取，才重新呼叫
+  try {
+    if (typeof place.isOpen === 'function') {
+      isCurrentlyOpen = place.isOpen();
+      place._cachedIsOpen = isCurrentlyOpen;  // 快取結果
     }
-  
-    openingHoursData = {
-      open_now: isCurrentlyOpen,  // true/false/null
-      weekday_text: place.currentOpeningHours.weekdayDescriptions || null
-    };
-  
-    console.log(`[API] ${place.displayName}: open_now = ${isCurrentlyOpen}`);
+  } catch (error) {
+    console.warn(`[API] Failed to check isOpen for ${name}:`, error);
+    place._cachedIsOpen = null;
   }
+}
   
-  // ✅ 新 API 的照片處理
+  const openingHoursData = {
+    open_now: isCurrentlyOpen,
+    weekday_text: null  // 詳細時間稍後載入
+  };
+  
+  // ✅ 照片處理
   let photoUrl = null;
   if (place.photos && place.photos.length > 0) {
     photoUrl = place.photos[0].getURI({ maxWidth: CONFIG.PHOTO_MAX_WIDTH });
@@ -859,27 +877,42 @@ async function getPlaceDetails(placeId) {
       id: placeId
     });
     
-    // ✅ 只請求還沒有的欄位（photos, website, full opening hours）
+    // ✅ 正確的欄位名稱
     await place.fetchFields({
-      fields: ['photos', 'websiteURI', 'googleMapsURI', 'currentOpeningHours']
+      fields: ['photos', 'websiteURI', 'googleMapsURI', 'regularOpeningHours']
     });
     
     console.log(`[API] Fetched details for place: ${placeId}`);
     
-    // 回傳補充資訊
+    // 取得營業時間文字
+    let weekdayText = null;
+    if (place.regularOpeningHours && place.regularOpeningHours.weekdayDescriptions) {
+      weekdayText = place.regularOpeningHours.weekdayDescriptions;
+    }
+    
+    // 再次檢查營業狀態
+    let isCurrentlyOpen = null;
+    try {
+      if (typeof place.isOpen === 'function') {
+        isCurrentlyOpen = place.isOpen();
+      }
+    } catch (e) {
+      console.warn('[API] isOpen() failed:', e);
+    }
+    
     return {
       photos: place.photos || [],
       photoUrl: place.photos?.[0]?.getURI({ maxWidth: CONFIG.PHOTO_MAX_WIDTH }) || null,
       website: place.websiteURI || null,
       googleMapsUrl: place.googleMapsURI || null,
-      opening_hours: place.currentOpeningHours ? {
-        open_now: place.currentOpeningHours.isOpen?.() ?? null,
-        weekday_text: place.currentOpeningHours.weekdayDescriptions || null
-      } : null
+      opening_hours: {
+        open_now: isCurrentlyOpen,
+        weekday_text: weekdayText
+      }
     };
   } catch (error) {
     console.error('Place details error:', error);
-    return null;  // 失敗時回傳 null，不中斷流程
+    return null;
   }
 }
 
