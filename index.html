@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icon-192.png"/>
 <title>Jiasa</title>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW&loading=async"></script>
 
 <style>
   :root { --bg:#1b0f0a; --fg:#fff6f0; --muted:#ffddc9; --primary:#ff8a3d; --primary-2:#ff5a5f; --card:#2b1912; --btn:#3a2219; --chip:#41251a;
@@ -596,13 +596,9 @@ let userLocation = null;
 let placesService = null;
 let map = null;
 
-function initPlacesService() {
-  if (!placesService && window.google) {
-    const mapDiv = document.createElement('div');
-    mapDiv.style.display = 'none';
-    document.body.appendChild(mapDiv);
-    map = new google.maps.Map(mapDiv);
-    placesService = new google.maps.places.PlacesService(map);
+async function initPlacesService() {
+  if (window.google?.maps?.places) {
+    console.log('[Jiasa] New Places API ready');
   }
 }
 
@@ -626,120 +622,130 @@ async function getUserLocation() {
   });
 }
 
-function getPhotoUrl(photo) {
-  if (!photo) return null;
-  try {
-    return photo.getUrl({ maxWidth: CONFIG.PHOTO_MAX_WIDTH });
-  } catch (e) {
-    return null;
-  }
-}
 
 async function fetchNearbyPlaces(location, radius = 1500) {
-  return new Promise((resolve, reject) => {
-    if (!placesService) {
-      reject(new Error('Places service not initialized'));
-      return;
-    }
-    
-    const types = filters.types.size > 0 ? Array.from(filters.types) : ['restaurant'];
-    const cuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [null];
-    
-    // 建立所有搜尋組合：每個 type × 每個 cuisine
-    const searchTasks = [];
-    
-    types.forEach(type => {
-      cuisines.forEach(cuisine => {
-        searchTasks.push(new Promise((res) => {
+  const { Place } = await google.maps.importLibrary("places");
+  
+  const types = filters.types.size > 0 ? Array.from(filters.types) : ['restaurant'];
+  const cuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [null];
+  
+  const searchTasks = [];
+  
+  types.forEach(type => {
+    cuisines.forEach(cuisine => {
+      searchTasks.push(new Promise(async (resolve) => {
+        try {
           const request = {
-            location: new google.maps.LatLng(location.lat, location.lng),
-            radius: radius,
-            type: type,
-            keyword: cuisine || undefined  // 如果沒選 cuisine，keyword 就是 undefined
+            fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
+                     'formattedAddress', 'types', 'photos', 'regularOpeningHours', 
+                     'websiteURI', 'googleMapsURI'],
+            locationRestriction: {
+              center: location,
+              radius: radius,
+            },
+            includedTypes: [type],
+            maxResultCount: 20,
+            languageCode: lang === 'zh' ? 'zh-TW' : 'en',
           };
           
-          placesService.nearbySearch(request, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK) {
-              res(results || []);
-            } else {
-              res([]);
-            }
-          });
-        }));
-      });
+          if (cuisine) {
+            request.textQuery = cuisine;
+          }
+          
+          const { places } = await Place.searchNearby(request);
+          resolve(places || []);
+        } catch (error) {
+          console.error('Search error:', error);
+          resolve([]);
+        }
+      }));
     });
-    
-    // 執行所有搜尋任務並合併結果
-    Promise.all(searchTasks).then(resultsArrays => {
-      const allResults = resultsArrays.flat();
-      const uniqueResults = Array.from(new Map(allResults.map(p => [p.place_id, p])).values());
-      
-      // ✅ 打亂順序，避免同一搜尋組合的結果集中在一起
-      const shuffled = uniqueResults.sort(() => Math.random() - 0.5);
-      resolve(shuffled);
-    }).catch(reject);
   });
+  
+  const resultsArrays = await Promise.all(searchTasks);
+  const allResults = resultsArrays.flat();
+  
+  // 去重
+  const uniqueResults = Array.from(
+    new Map(allResults.map(p => [p.id, p])).values()
+  );
+  
+  // 打亂順序
+  const shuffled = uniqueResults.sort(() => Math.random() - 0.5);
+  return shuffled;
 }
 
 function transformPlaceData(place) {
   const types = place.types || ['restaurant'];
   const cuisineGuess = [];
   
-  if (place.name) {
-    const name = place.name.toLowerCase();
-    if (name.includes('japanese') || name.includes('sushi') || name.includes('ramen') || name.includes('日式') || name.includes('日本')) cuisineGuess.push('japanese');
-    if (name.includes('chinese') || name.includes('dim sum') || name.includes('中式') || name.includes('中國')) cuisineGuess.push('chinese');
-    if (name.includes('italian') || name.includes('pizza') || name.includes('pasta') || name.includes('義式')) cuisineGuess.push('italian');
-    if (name.includes('thai') || name.includes('泰式')) cuisineGuess.push('thai');
-    if (name.includes('korean') || name.includes('bbq') || name.includes('韓式')) cuisineGuess.push('korean');
-    if (name.includes('vietnamese') || name.includes('pho') || name.includes('越南')) cuisineGuess.push('vietnamese');
+  const name = place.displayName || place.formattedAddress || 'Unknown';
+  const nameLower = name.toLowerCase();
+  
+  if (nameLower.includes('japanese') || nameLower.includes('sushi') || nameLower.includes('ramen') || nameLower.includes('日式') || nameLower.includes('日本')) cuisineGuess.push('japanese');
+  if (nameLower.includes('chinese') || nameLower.includes('dim sum') || nameLower.includes('中式') || nameLower.includes('中國')) cuisineGuess.push('chinese');
+  if (nameLower.includes('italian') || nameLower.includes('pizza') || nameLower.includes('pasta') || nameLower.includes('義式')) cuisineGuess.push('italian');
+  if (nameLower.includes('thai') || nameLower.includes('泰式')) cuisineGuess.push('thai');
+  if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
+  if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
+  
+  // ✅ 新 API 的營業狀態處理
+  let openingHoursData = null;
+  if (place.regularOpeningHours) {
+    openingHoursData = {
+      open_now: place.regularOpeningHours.isOpen?.(),
+      weekday_text: place.regularOpeningHours.weekdayDescriptions || null
+    };
+  }
+  
+  // ✅ 新 API 的照片處理
+  let photoUrl = null;
+  if (place.photos && place.photos.length > 0) {
+    photoUrl = place.photos[0].getURI({ maxWidth: CONFIG.PHOTO_MAX_WIDTH });
   }
   
   return {
-    id: place.place_id,
-    place_id: place.place_id,
-    name: place.name,
+    id: place.id,
+    place_id: place.id,
+    name: name,
     rating: place.rating || 0,
-    price: place.price_level || 2,
-    address: place.vicinity || place.formatted_address || '',
+    price: place.priceLevel || 2,
+    address: place.formattedAddress || '',
     types: types,
     cuisines: cuisineGuess,
-    location: place.geometry?.location ? {
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng()
+    location: place.location ? {
+      lat: place.location.lat(),
+      lng: place.location.lng()
     } : null,
     photos: place.photos || [],
-    photoUrl: place.photos?.[0] ? getPhotoUrl(place.photos[0]) : null,
-    opening_hours: place.opening_hours ? {
-      open_now: place.opening_hours.open_now,
-      weekday_text: place.opening_hours.weekday_text || null
-    } : null,
-    website: place.website || null,
-    googleMapsUrl: place.url || null,  // ✅ 加上這行
+    photoUrl: photoUrl,
+    opening_hours: openingHoursData,
+    website: place.websiteURI || null,
+    googleMapsUrl: place.googleMapsURI || null,
     isSponsored: false
   };
 }
 
 async function getPlaceDetails(placeId) {
-  return new Promise((resolve, reject) => {
-    if (!placesService) {
-      reject(new Error('Places service not initialized'));
-      return;
-    }
+  try {
+    const { Place } = await google.maps.importLibrary("places");
     
-    const request = {
-      placeId: placeId,
-      fields: ['name', 'rating', 'price_level', 'formatted_address', 'geometry', 'photos', 'opening_hours', 'website', 'types', 'vicinity', 'url']  // ✅ 加上 'url'
-    };
-    
-    placesService.getDetails(request, (place, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK) {
-        resolve(transformPlaceData(place));
-      } else {
-        reject(new Error(`Place details error: ${status}`));
-      }
+    const place = new Place({
+      id: placeId,
+      requestedLanguage: lang === 'zh' ? 'zh-TW' : 'en'
     });
-  });
+    
+    await place.fetchFields({
+      fields: ['displayName', 'id', 'location', 'rating', 'priceLevel', 
+               'formattedAddress', 'types', 'photos', 'regularOpeningHours', 
+               'websiteURI', 'googleMapsURI']
+    });
+    
+    return transformPlaceData(place);
+  } catch (error) {
+    console.error('Place details error:', error);
+    throw error;
+  }
 }
 
 // ====== DEMO DATA ======
