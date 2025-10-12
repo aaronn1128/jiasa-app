@@ -8,8 +8,11 @@
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icon-192.png"/>
 <title>Jiasa</title>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&language=zh-TW"></script>
-
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI&libraries=places&loading=async"
+  async
+  defer>
+</script>
 <style>
   :root { --bg:#1b0f0a; --fg:#fff6f0; --muted:#ffddc9; --primary:#ff8a3d; --primary-2:#ff5a5f; --card:#2b1912; --btn:#3a2219; --chip:#41251a;
     --disabled:#3a2a24; --disabled-text:#c8a99a; --select-bg:#2b1c14; --select-text:#f5e0c5; --select-border:#5a4638; --like:#6ee7a8; --nope:#fca5a5;
@@ -599,10 +602,20 @@ const I18N = {
 // ====== STATE ======
 let lang = localStorage.getItem(CONFIG.STORAGE_KEYS.lang) || "zh";
 let currentTheme = localStorage.getItem(CONFIG.STORAGE_KEYS.theme) || 'classic';
-let filters = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.filters) || JSON.stringify(CONFIG.DEFAULT_FILTERS));
-filters.types = new Set(filters.types || []);
-filters.cuisines = new Set(filters.cuisines || []);
-filters.priceLevel = new Set(filters.priceLevel || []); 
+let filtersRaw = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.filters) || JSON.stringify(CONFIG.DEFAULT_FILTERS));
+
+// 確保都是「陣列」，防止舊版本存成字串、數字、null 等非可迭代型別
+const asArray = (v) => Array.isArray(v) ? v : (v == null ? [] : [v]);
+
+let filters = {
+  openNow: !!filtersRaw.openNow,
+  minRating: Number(filtersRaw.minRating ?? CONFIG.DEFAULT_FILTERS.minRating),
+  distance: Number(filtersRaw.distance ?? CONFIG.DEFAULT_FILTERS.distance),
+  // 這三個一定轉成 Set 之前先轉乾淨的陣列
+  types: new Set(asArray(filtersRaw.types)),
+  cuisines: new Set(asArray(filtersRaw.cuisines)),
+  priceLevel: new Set(asArray(filtersRaw.priceLevel)),
+};
 
 let pool = []; 
 let index = 0; 
@@ -622,14 +635,22 @@ class Analytics {
     this.events = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.analytics) || "[]");
     this.session = { id: Date.now(), start: Date.now(), events: [] };
   }
-  track(event, label, payload = {}) {
-    const record = { event, label, timestamp: Date.now(), session_id: this.session.id, lang, theme: currentTheme, ...payload };
-    this.session.events.push(record);
-    this.events.push(record);
-    if (this.events.length > 1000) this.events = this.events.slice(-1000);
-    localStorage.setItem(CONFIG.STORAGE_KEYS.analytics, JSON.stringify(this.events));
-    console.log(`[Analytics] ${event}:`, label, payload);
-  }
+track(event, label, payload = {}) {
+  const record = {
+    event,
+    label,
+    timestamp: Date.now(),
+    session_id: this.session.id,
+    lang,
+    theme: currentTheme,
+    ...payload
+  };
+  this.session.events.push(record);
+  this.events.push(record);
+  if (this.events.length > 1000) this.events = this.events.slice(-1000);
+  localStorage.setItem(CONFIG.STORAGE_KEYS.analytics, JSON.stringify(this.events));
+  console.log(`[Analytics] ${event}:`, label, payload);
+}
   trackSwipe(restaurant, direction) {
     this.track(`swipe_${direction}`, restaurant.id, { place_id: restaurant.place_id, name: restaurant.name, rating: restaurant.rating, price: restaurant.price, types: restaurant.types, isSponsored: restaurant.isSponsored });
   }
