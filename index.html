@@ -428,7 +428,6 @@
 <div class="modal-body">
 <div class="section" id="filtersBlock">
   <div class="filter-actions"><div class="label" style="margin:0;">篩選條件</div><button class="clear-filters" id="btnClearFilters">清除全部</button></div>
-  <div class="toggle-wrapper"><span class="toggle-label" id="lblOpenNow">只顯示營業中</span><div class="toggle" id="toggleOpenNow" role="switch" aria-checked="false"><div class="toggle-knob"></div></div></div>
 <div>
   <div class="field-group" id="grpRating">
     <div class="label" id="lblMinRating">最低評分</div>
@@ -492,7 +491,7 @@ const CONFIG = {
     analytics: 'jiasa_analytics'
   },
   DEFAULT_FILTERS: {
-    openNow: false,
+    openNow: true,
     minRating: 3,
     priceLevel: [],  // ✅ 改成陣列
     distance: 1500,
@@ -526,7 +525,7 @@ const I18N = {
     nowOpen:"營業中", nowClose:"休息中", hoursUnknown:"營業時間未提供",
     view:"查看", del:"刪除", showHours:"顯示營業時間", hideHours:"收起營業時間",
     theme:"主題", apply:"套用", clearFilters:"清除全部",
-    openNow:"只顯示營業中", minRating:"最低評分（只顯示評分高於此值的餐廳。）", priceLevel:"價格範圍（$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴）",
+    minRating:"最低評分（只顯示評分高於此值的餐廳。）", priceLevel:"價格範圍（$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴）",
     types:"餐廳類型（未選表示全部。）", cuisines:"料理風格（作為搜尋關鍵字使用。）",
     hintRating:"只顯示評分高於此值的餐廳。", 
     hintPrice:"$ 便宜 | $$ 中等 | $$$ 較貴 | $$$$ 昂貴", 
@@ -1158,12 +1157,20 @@ function setButtonsLoading(loading) {
 
 function showErrorState(message) {
   const stack = $("#stack");
+  
+  // ✅ 特別處理「找不到營業中餐廳」的情況
+  const isOpenNowIssue = message.includes('符合條件') && filters.openNow;
+  const hint = isOpenNowIssue ? 
+    `<div style="color:var(--muted); font-size:13px; margin-top:4px;">💡 試試擴大搜尋範圍或稍後再試</div>` : '';
+  
   stack.innerHTML = `
     <div class="empty-with-action">
       <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         ${ICONS.search}
       </svg>
       <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div>
+      ${hint}
+
       <button class="btn primary" onclick="retryBuildPool()" style="min-width:120px;">${t('retry')}</button>
       <button class="btn" onclick="openModal()" style="min-width:120px;">${t('adjustFilters')}</button>
       ${CONFIG.DEMO_MODE ? '' : '<button class="btn" onclick="switchToDemoMode()" style="min-width:120px; margin-top:8px;">' + (lang === 'zh' ? '使用示範模式' : 'Use Demo Mode') + '</button>'}
@@ -1669,15 +1676,6 @@ function syncUIFromStaged(){
   $("#langSelModal").value = staged.preview.lang;
   $("#themeSelect").value = staged.preview.theme;
   
-  const toggle = $("#toggleOpenNow");
-  if (staged.filters.openNow) {
-    toggle.classList.add("active");
-    toggle.setAttribute("aria-checked", "true");
-  } else {
-    toggle.classList.remove("active");
-    toggle.setAttribute("aria-checked", "false");
-  }
-  
   const ratingSlider = $("#minRating");
   ratingSlider.value = staged.filters.minRating;
   $("#ratingShow").textContent = staged.filters.minRating.toFixed(1) + "+";
@@ -2107,12 +2105,6 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     staged.preview.theme = e.target.value;
     currentTheme = staged.preview.theme;
     applyTheme(staged.preview.theme);
-  });
-
-  $("#toggleOpenNow").addEventListener("click", ()=>{
-    if(!staged) return;
-    staged.filters.openNow = !staged.filters.openNow;
-    syncUIFromStaged();
   });
 
   $("#minRating").addEventListener("input", (e)=>{ 
