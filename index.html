@@ -645,7 +645,6 @@ async function fetchNearbyPlaces(location, radius = 1500) {
             },
             includedTypes: [type],
             maxResultCount: 20,
-            languageCode: lang === 'zh' ? 'zh-TW' : 'en',
           };
           
           if (cuisine) {
@@ -731,8 +730,7 @@ async function getPlaceDetails(placeId) {
     const { Place } = await google.maps.importLibrary("places");
     
     const place = new Place({
-      id: placeId,
-      requestedLanguage: lang === 'zh' ? 'zh-TW' : 'en'
+      id: placeId
     });
     
     await place.fetchFields({
