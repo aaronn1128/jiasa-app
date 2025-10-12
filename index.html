@@ -777,7 +777,7 @@ async function fetchNearbyPlaces(location, radius = 1500) {
       }));
     });
   } else {
-    // 如果有選擇料理風格，使用 searchText
+    // 如果有選擇料理風格，使用 searchByText（← 這裡換方法名）
     types.forEach(type => {
       cuisines.forEach(cuisine => {
         searchTasks.push(new Promise(async (resolve) => {
@@ -794,7 +794,8 @@ async function fetchNearbyPlaces(location, radius = 1500) {
               maxResultCount: 20,
             };
             
-            const { places } = await Place.searchText(request);
+            // 這行改成 searchByText
+            const { places } = await Place.searchByText(request);
             
             // 過濾出符合類型的結果
             const filtered = (places || []).filter(p => 
@@ -823,7 +824,6 @@ async function fetchNearbyPlaces(location, radius = 1500) {
   const shuffled = uniqueResults.sort(() => Math.random() - 0.5);
   return shuffled;
 }
-
 // ====== 價格等級轉換 ======
 function convertPriceLevel(priceLevel) {
   if (!priceLevel) return 2;
@@ -1707,7 +1707,7 @@ function openFavModal(){
   closeAllModals();
   $("#favOverlay").classList.add("active"); 
   $("#favModal").classList.add("active");
-  $("#btnFavs").classList.add("active");
+  $("#navFavs").classList.add("active");
   renderFavs();
   setFocusToCloseButton('favModal');
   analytics.track('modal_open', 'favorites');
@@ -1717,7 +1717,7 @@ function openHistModal(){
   closeAllModals();
   $("#histOverlay").classList.add("active"); 
   $("#histModal").classList.add("active");
-  $("#btnHistory").classList.add("active");
+  $("#navHistory").classList.add("active");
   renderHistory();
   setFocusToCloseButton('histModal');
   analytics.track('modal_open', 'history');
