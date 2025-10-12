@@ -746,21 +746,30 @@ async function getUserLocation() {
 async function fetchNearbyPlaces(location, radius = 1500) {
   const { Place } = await google.maps.importLibrary("places");
   
-  const types = filters.types.size > 0 ? Array.from(filters.types) : ['restaurant'];
-  const cuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [];
+  const allTypes = ["restaurant", "cafe", "bar", "bakery", "meal_takeaway", "meal_delivery"];
+  const allCuisines = ["japanese", "chinese", "italian", "thai", "korean", "vietnamese", "western", "vegetarian", "seafood", "bbq", "hotpot", "noodles"];
+
+  const selectedTypes = filters.types.size > 0 ? Array.from(filters.types) : allTypes;
+  const selectedCuisines = filters.cuisines.size > 0 ? Array.from(filters.cuisines) : [];
   
   const searchTasks = [];
   
-  // 如果沒有選擇料理風格，只按類型搜尋
-  if (cuisines.length === 0) {
-    types.forEach(type => {
+  const isAllSelected = filters.types.size === allTypes.length && filters.cuisines.size === allCuisines.length;
+
+  // 檢查是否為最寬鬆模式或僅選擇類型（使用 searchNearby 模式）
+  if (selectedCuisines.length === 0 || isAllSelected) {
+    // 方案 1: 如果沒有選擇料理風格，或所有條件都選了（最寬鬆），則使用 searchNearby
+    // 為了避免多次請求，如果 types 也全部選了，我們只用 ['restaurant'] 進行一次廣泛搜索
+    const includedTypes = isAllSelected || filters.types.size === 0 ? ['restaurant'] : selectedTypes;
+
+    includedTypes.forEach(type => {
       searchTasks.push(new Promise(async (resolve) => {
         try {
           const request = {
             fields: [
               'displayName', 'id', 'location', 'rating', 'priceLevel', 
               'formattedAddress', 'types', 'photos', 
-              'currentOpeningHours', // ✅ 修正方案：優先使用 currentOpeningHours
+              'currentOpeningHours', 
               'websiteURI', 'googleMapsURI'
             ],
             locationRestriction: {
@@ -774,47 +783,51 @@ async function fetchNearbyPlaces(location, radius = 1500) {
           const { places } = await Place.searchNearby(request);
           resolve(places || []);
         } catch (error) {
-          console.error('Search error:', error);
+          console.error('SearchNearby error:', error);
           resolve([]);
         }
       }));
     });
+    
   } else {
-    // 如果有選擇料理風格，使用 searchText
-    types.forEach(type => {
-      cuisines.forEach(cuisine => {
-        searchTasks.push(new Promise(async (resolve) => {
-          try {
-            const request = {
-              fields: [
-                'displayName', 'id', 'location', 'rating', 'priceLevel', 
-                'formattedAddress', 'types', 'photos', 
-                'currentOpeningHours', // ✅ 修正方案：優先使用 currentOpeningHours
-                'websiteURI', 'googleMapsURI'
-              ],
-              textQuery: `${cuisine} restaurant`,
-              locationBias: {
-                center: location,
-                radius: radius,
-              },
-              maxResultCount: 20,
-            };
-            
-            const { places } = await Place.searchText(request);
-            
-            // 過濾出符合類型的結果
-            const filtered = (places || []).filter(p => 
-              p.types && p.types.includes(type)
-            );
-            
-            resolve(filtered);
-          } catch (error) {
-            console.error('Search error:', error);
-            resolve([]);
-          }
-        }));
-      });
-    });
+    // 方案 2: 有明確選擇料理風格，但沒有全部選擇。使用 searchText 模式。
+    // 為了優化，我們只針對 Cuisine 進行一次 TextSearch，並用 LocationBias
+    // 這樣可以大幅減少 API 請求數量（從 72 次降為 1 次）
+
+    const queryCuisines = selectedCuisines.join(' OR '); // 組合 Cuisine 關鍵字
+    const textQuery = `${queryCuisines} restaurant`;
+
+    searchTasks.push(new Promise(async (resolve) => {
+      try {
+        const request = {
+          fields: [
+            'displayName', 'id', 'location', 'rating', 'priceLevel', 
+            'formattedAddress', 'types', 'photos', 
+            'currentOpeningHours', 
+            'websiteURI', 'googleMapsURI'
+          ],
+          textQuery: textQuery,
+          locationBias: {
+            center: location,
+            radius: radius,
+          },
+          maxResultCount: 20,
+        };
+        
+        const { places } = await Place.searchText(request);
+        
+        // 使用更寬鬆的過濾邏輯：只要結果符合選定的類型（如果使用者有選），就保留
+        const filtered = (places || []).filter(p => {
+          if (filters.types.size === 0) return true; // 如果沒有選 Types，則不過濾
+          return p.types && p.types.some(t => filters.types.has(t));
+        });
+        
+        resolve(filtered);
+      } catch (error) {
+        console.error('TextSearch error:', error);
+        resolve([]);
+      }
+    }));
   }
   
   const resultsArrays = await Promise.all(searchTasks);
@@ -1069,9 +1082,6 @@ async function buildPool() {
     
     // ✅ 篩選邏輯修正：如果 openNow 是 null (代表 API 未回傳狀態) 就不進行過濾。
     pool = allPlaces.filter(r => {
-      // 修正方案 3: 加入除錯訊息（可選，但有助於確認）
-      // console.log(`Restaurant: ${r.name}, open_now: ${r.opening_hours?.open_now}, filter: ${filters.openNow}`);
-      
       // 只有當 filters.openNow 為 true 且 r.opening_hours?.open_now 嚴格為 false/undefined/null 時才過濾
       if (filters.openNow && r.opening_hours?.open_now !== true) return false;
       
@@ -1139,8 +1149,8 @@ function showErrorState(message) {
       </svg>
       <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div>
       <button class="btn primary" onclick="retryBuildPool()" style="min-width:120px;">${t('retry')}</button>
+      <button class="btn" onclick="switchToDemoMode()" style="min-width:120px; margin-top:8px;">${lang === 'zh' ? '使用示範模式' : 'Use Demo Mode'}</button>
       <button class="btn" onclick="openModal()" style="min-width:120px;">${t('adjustFilters')}</button>
-      ${CONFIG.DEMO_MODE ? '' : '<button class="btn" onclick="switchToDemoMode()" style="min-width:120px; margin-top:8px;">' + (lang === 'zh' ? '使用示範模式' : 'Use Demo Mode') + '</button>'}
     </div>
   `;
 }
@@ -1636,7 +1646,7 @@ function openModal(){
   };
   $("#overlay").classList.add("active"); 
   $("#modal").classList.add("active");
-  $("#navSettings").classList.add("active"); // 確保導航按鈕在開啟設定時是啟動狀態
+  $("#navSettings").classList.add("active");
   syncUIFromStaged();
   setFocusToCloseButton('modal');
   analytics.track('modal_open', 'settings');
