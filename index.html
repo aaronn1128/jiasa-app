@@ -1207,6 +1207,19 @@
         };
         
         const { places } = await Place.searchNearby(request);
+console.log(`[API] Fetched ${places?.length || 0} places`);
+
+if (places && places.length > 0) {
+  console.log('[DEBUG] First 3 places raw data:', places.slice(0, 3));
+  places.forEach((place, idx) => {
+    console.log(`[DEBUG ${idx}] ${place.displayName}:`, {
+      rating: place.rating,
+      priceLevel: place.priceLevel,
+      types: place.types,
+      hasIsOpenMethod: typeof place.isOpen === 'function'
+    });
+  });
+}
         console.log(`[API] Fetched ${places?.length || 0} places`);
 
         // ✅ 立即檢查所有餐廳的營業狀態並快取結果
@@ -1473,6 +1486,14 @@
               allPlaces = [];
             } else {
               allPlaces = places.map(transformPlaceData);
+console.log('[DEBUG] Transformed data sample:', allPlaces.slice(0, 3));
+allPlaces.forEach((r, idx) => {
+  console.log(`[DEBUG Transform ${idx}] ${r.name}:`, {
+    rating: r.rating,
+    price: r.price,
+    opening_hours: r.opening_hours
+  });
+});
             }
             
             localStorage.setItem('jiasa_cache', JSON.stringify({
@@ -1501,59 +1522,94 @@
         
         window.allDemoData = allPlaces;
         
-        // ✅ 前端篩選 - 加入除錯訊息
-        pool = allPlaces.filter(r => {
-          // ✅ 只保留明確「營業中」的餐廳，排除休息中或狀態未知的
-          if (r.opening_hours?.open_now !== true) {
-            console.log(`[Filter] Excluded ${r.name}: not open (status: ${r.opening_hours?.open_now})`);
-            return false;
-          }
-          
-          // 評分篩選
-          if (r.rating < filters.minRating) return false;
-          
-          // 價格篩選
-          if (filters.priceLevel.size > 0 && !filters.priceLevel.has(r.price)) return false;
-          
-          // 類型篩選
-          if (filters.types.size > 0) {
-            const hasMatchingType = r.types.some(t => filters.types.has(t));
-            if (!hasMatchingType) return false;
-          }
-          
-          // 料理風格篩選（前端用名稱模糊比對）
-          if (filters.cuisines.size > 0) {
-            const nameLower = r.name.toLowerCase();
-            const addressLower = (r.address || '').toLowerCase();
-            const searchText = nameLower + ' ' + addressLower;
-            
-            const cuMap = {
-              japanese: ['japanese', 'sushi', 'ramen', '日式', '日本', '壽司', '拉麵'],
-              chinese: ['chinese', 'dim sum', '中式', '中國', '港式', '粵菜'],
-              italian: ['italian', 'pizza', 'pasta', '義式', '披薩', '義大利'],
-              thai: ['thai', '泰式', '泰國'],
-              korean: ['korean', 'bbq', '韓式', '韓國', '烤肉'],
-              vietnamese: ['vietnamese', 'pho', '越南', '河粉'],
-              western: ['western', 'steak', '西餐', '牛排'],
-              vegetarian: ['vegetarian', 'vegan', '蔬食', '素食'],
-              seafood: ['seafood', '海鮮'],
-              bbq: ['bbq', 'barbecue', '燒烤', '烤肉'],
-              hotpot: ['hotpot', 'hot pot', '火鍋'],
-              noodles: ['noodle', '麵', '麵食']
-            };
-            
-            const hasMatchingCuisine = Array.from(filters.cuisines).some(cuisine => {
-              const keywords = cuMap[cuisine] || [cuisine];
-              return keywords.some(keyword => searchText.includes(keyword.toLowerCase()));
-            });
-            
-            if (!hasMatchingCuisine) return false;
-          }
-          
-          return true;
-        });
+// ✅ 前端篩選（含詳細除錯與 OR 判斷）
+pool = allPlaces.filter(r => {
+  console.groupCollapsed(`[Filter Check] ${r.name}`);
 
-        console.log(`[Filter] Results: ${pool.length} out of ${allPlaces.length} places`);
+  // ── 開店狀態（只有在使用者有開啟 openNow 濾條時才會檔）──
+  if (filters.openNow && r.opening_hours?.open_now !== true) {
+    console.log(`❌ Not open now (value: ${r.opening_hours?.open_now})`);
+    console.groupEnd();
+    return false;
+  }
+  console.log('✅ Open status OK (or openNow not required)');
+
+  // ── 評分 ──
+  if (typeof r.rating === 'number' && r.rating < filters.minRating) {
+    console.log(`❌ Rating too low: ${r.rating} < ${filters.minRating}`);
+    console.groupEnd();
+    return false;
+  }
+  console.log(`✅ Rating OK: ${r.rating}`);
+
+  // ── 價位（$ 級距；若你改成「金額區間」，把這段換成你的區間判斷）──
+  if (filters.priceLevel?.size > 0) {
+    if (!filters.priceLevel.has(r.price)) {
+      console.log(`❌ Price not matched. got=${r.price}, allowed=${[...filters.priceLevel]}`);
+      console.groupEnd();
+      return false;
+    }
+    console.log(`✅ Price OK: ${r.price}`);
+  } else {
+    console.log('ℹ️ No price filter applied');
+  }
+
+  // ── 類型（OR；任一符合即可）──
+  if (filters.types?.size > 0) {
+    const arr = Array.isArray(r.types) ? r.types : [];
+    const ok = arr.some(t => filters.types.has(t));
+    if (!ok) {
+      console.log(`❌ Type not matched. types=${arr}, allowed=${[...filters.types]}`);
+      console.groupEnd();
+      return false;
+    }
+    console.log(`✅ Type matched. types=${arr}`);
+  } else {
+    console.log('ℹ️ No type filter applied');
+  }
+
+  // ── 料理（OR；名稱/地址關鍵字比對，中英皆可）──
+  if (filters.cuisines?.size > 0) {
+    const nameLower = (r.name || '').toLowerCase();
+    const addressLower = (r.address || '').toLowerCase();
+    const searchText = `${nameLower} ${addressLower}`;
+
+    const cuMap = {
+      japanese:   ['japanese', 'sushi', 'ramen', '日式', '日本', '壽司', '拉麵'],
+      chinese:    ['chinese', 'dim sum', '中式', '中國', '港式', '粵菜'],
+      italian:    ['italian', 'pizza', 'pasta', '義式', '披薩', '義大利'],
+      thai:       ['thai', '泰式', '泰國'],
+      korean:     ['korean', 'bbq', '韓式', '韓國', '烤肉'],
+      vietnamese: ['vietnamese', 'pho', '越南', '河粉'],
+      western:    ['western', 'steak', '西餐', '牛排'],
+      vegetarian: ['vegetarian', 'vegan', '蔬食', '素食'],
+      seafood:    ['seafood', '海鮮'],
+      bbq:        ['bbq', 'barbecue', '燒烤', '烤肉'],
+      hotpot:     ['hotpot', 'hot pot', '火鍋'],
+      noodles:    ['noodle', '麵', '麵食']
+    };
+
+    const ok = Array.from(filters.cuisines).some(cuisine => {
+      const keywords = cuMap[cuisine] || [cuisine];
+      return keywords.some(k => searchText.includes(String(k).toLowerCase()));
+    });
+
+    if (!ok) {
+      console.log(`❌ Cuisine not matched. text="${searchText}", required=${[...filters.cuisines]}`);
+      console.groupEnd();
+      return false;
+    }
+    console.log('✅ Cuisine matched');
+  } else {
+    console.log('ℹ️ No cuisine filter applied');
+  }
+
+  console.log('✅✅✅ PASSED ALL FILTERS');
+  console.groupEnd();
+  return true;
+});
+
+console.log(`[Filter] Results: ${pool.length} out of ${allPlaces.length} places`);
         
         const normalRestaurants = pool.filter(r => !r.isSponsored);
         const sponsoredRestaurants = pool.filter(r => r.isSponsored);
