@@ -1609,12 +1609,18 @@ pool = allPlaces.filter(r => {
   return true;
 });
 
+// ① 第一行 log: 篩選後
+console.log('[DEBUG] pool after filtering:', pool.map(r => r.name), 'len=', pool.length);
+
 console.log(`[Filter] Results: ${pool.length} out of ${allPlaces.length} places`);
         
         const normalRestaurants = pool.filter(r => !r.isSponsored);
         const sponsoredRestaurants = pool.filter(r => r.isSponsored);
         const sortedNormal = recommender.sortPool(normalRestaurants);
         pool = sortedNormal;
+
+        // ② 第二行 log: 排序後
+        console.log('[DEBUG] after sort:', pool.map(r => r.name), 'len=', pool.length);
         
         sponsoredRestaurants.forEach((sponsor, idx) => {
           const insertPos = 5 + (idx * 6);
@@ -1622,11 +1628,17 @@ console.log(`[Filter] Results: ${pool.length} out of ${allPlaces.length} places`
           else pool.push(sponsor);
         });
         
+        // ③ 第三行 log: 贊助商插入後
+        console.log('[DEBUG] after sponsor insert:', pool.map(r => r.name), 'len=', pool.length);
+        
         if (!hasSeenOnboarding) {
           pool.unshift(createOnboardingCard());
         }
         
         index = 0;
+
+        // ④ 第四行 log: 渲染前
+        console.log('[DEBUG] before render, pool len =', pool.length);
         
         if (pool.length === 0) {
           showErrorState(t('noMatches'));
