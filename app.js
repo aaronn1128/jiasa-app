@@ -74,12 +74,15 @@ async function getUserLocation() {
 }
 
 async function fetchNearbyPlaces(location, radius = 1500) {
-  const apiUrl = `/api/search?lat=${lat}&lng=${lng}&radius=${radius}&lang=${state.lang || 'zh'}`;
+  const { lat, lng } = location || {};
+  const lang = state.lang || 'zh';
+
+  const apiUrl =
+    `/api/search?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius=${radius}&lang=${encodeURIComponent(lang)}`;
+
   try {
     const response = await fetch(apiUrl);
-    if (!response.ok) {
-      throw new Error('API request failed');
-    }
+    if (!response.ok) throw new Error(`API request failed: ${response.status}`);
     const data = await response.json();
     return data.places || [];
   } catch (error) {
