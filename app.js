@@ -1,10 +1,10 @@
 // app.js (完整版 - 總指揮)
 
 // 1. 從各部門引入需要的工具和狀態
-import { CONFIG } from './config.js';
-import { state, saveFilters, saveFavs, saveHistory } from './state.js';
-import * as UI from './ui.js';
-import { analytics } from './analytics.js';
+import { CONFIG } from './js/config.js';
+import { state, saveFilters, saveFavs, saveHistory } from './js/state.js';
+import * as UI from './js/ui.js';
+import { analytics } from './js/analytics.js';
 
 // 2. 匯出需要給 ui.js 使用的函式 (解決模組循環依賴)
 
