@@ -1,10 +1,10 @@
 // app.js (完整版 - 總指揮)
 
 // 1. 從各部門引入需要的工具和狀態
-import { CONFIG } from './js/config.js';
-import { state, saveFilters, saveFavs, saveHistory } from './js/state.js';
-import * as UI from './js/ui.js';
-import { analytics } from './js/analytics.js';
+import { CONFIG } from './config.js';
+import { state, saveFilters, saveFavs, saveHistory } from './state.js';
+import * as UI from './ui.js';
+import { analytics } from './analytics.js';
 
 // 2. 匯出需要給 ui.js 使用的函式 (解決模組循環依賴)
 export { choose, nextCard, openModal };
@@ -92,44 +92,45 @@ async function fetchNearbyPlaces(location, radius = 1500) {
 }
 
 function transformPlaceData(place) {
-    const types = place.types || ['restaurant'];
-    const name = place.displayName?.text || place.formattedAddress || 'Unknown Name';
-    const cuisineGuess = [];
-    const nameLower = name.toLowerCase();
-    if (nameLower.includes('japanese') || nameLower.includes('sushi') || nameLower.includes('ramen') || nameLower.includes('日式') || nameLower.includes('日本')) cuisineGuess.push('japanese');
-    if (nameLower.includes('chinese') || nameLower.includes('dim sum') || nameLower.includes('中式') || nameLower.includes('中國')) cuisineGuess.push('chinese');
-    if (nameLower.includes('italian') || nameLower.includes('pizza') || nameLower.includes('pasta') || nameLower.includes('義式')) cuisineGuess.push('italian');
-    if (nameLower.includes('thai') || nameLower.includes('泰式')) cuisineGuess.push('thai');
-    if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
-    if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
-    
-if (place.photos && place.photos.length > 0) {
-  const photoName = place.photos[0].name;
-  const BROWSER_PLACES_KEY = 'AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI'; // 瀏覽器金鑰
-  // 1) name 要 encode
-  // 2) 建議只帶 maxWidthPx
-  photoUrl = `https://places.googleapis.com/v1/${encodeURIComponent(photoName)}/media?maxWidthPx=${CONFIG.PHOTO_MAX_WIDTH || 1200}&key=${BROWSER_PLACES_KEY}`;
-}
+  const types = place.types || ['restaurant'];
+  const name = place.displayName?.text || place.formattedAddress || 'Unknown Name';
+  const cuisineGuess = [];
+  const nameLower = name.toLowerCase();
 
-    return {
-        id: place.id,
-        place_id: place.id,
-        name: name,
-        rating: place.rating || 0,
-        price: convertPriceLevel(place.priceLevel),
-        address: place.formattedAddress || '',
-        types: types,
-        cuisines: cuisineGuess,
-        location: place.location,
-        photoUrl: photoUrl,
-        opening_hours: {
-            open_now: place.regularOpeningHours ? place.regularOpeningHours.openNow : null,
-            weekday_text: place.regularOpeningHours ? place.regularOpeningHours.weekdayDescriptions : null
-        },
-        website: place.websiteUri || null,
-        googleMapsUrl: place.googleMapsUri || null,
-        isSponsored: false
-    };
+  if (nameLower.includes('japanese') || nameLower.includes('sushi') || nameLower.includes('ramen') || nameLower.includes('日式') || nameLower.includes('日本')) cuisineGuess.push('japanese');
+  if (nameLower.includes('chinese') || nameLower.includes('dim sum') || nameLower.includes('中式') || nameLower.includes('中國')) cuisineGuess.push('chinese');
+  if (nameLower.includes('italian') || nameLower.includes('pizza') || nameLower.includes('pasta') || nameLower.includes('義式')) cuisineGuess.push('italian');
+  if (nameLower.includes('thai') || nameLower.includes('泰式')) cuisineGuess.push('thai');
+  if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
+  if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
+
+  // ✅ 先宣告，避免成為未定義變數
+  let photoUrl = null;
+  if (place.photos && place.photos.length > 0) {
+    const photoName = place.photos[0].name;
+    const BROWSER_PLACES_KEY = 'AIzaSyDex4jcGsgso6jHfCdKD3pcD3PnU4cKjCY'; // 瀏覽器金鑰（已設 referrer）
+    photoUrl = `https://places.googleapis.com/v1/${encodeURIComponent(photoName)}/media?maxWidthPx=${CONFIG.PHOTO_MAX_WIDTH || 1200}&key=${BROWSER_PLACES_KEY}`;
+  }
+
+  return {
+    id: place.id,
+    place_id: place.id,
+    name,
+    rating: place.rating || 0,
+    price: convertPriceLevel(place.priceLevel),
+    address: place.formattedAddress || '',
+    types,
+    cuisines: cuisineGuess,
+    location: place.location,
+    photoUrl, // ✅ 正常帶出
+    opening_hours: {
+      open_now: place.regularOpeningHours ? place.regularOpeningHours.openNow : null,
+      weekday_text: place.regularOpeningHours ? place.regularOpeningHours.weekdayDescriptions : null
+    },
+    website: place.websiteUri || null,
+    googleMapsUrl: place.googleMapsUri || null,
+    isSponsored: false
+  };
 }
 
 function convertPriceLevel(priceLevel) {
