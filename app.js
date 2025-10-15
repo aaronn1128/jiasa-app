@@ -103,12 +103,13 @@ function transformPlaceData(place) {
     if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
     if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
     
-    let photoUrl = null;
-    if (place.photos && place.photos.length > 0) {
-        const photoName = place.photos[0].name;
-        const apiKeyForPhotos = 'AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI'; // This key needs to be secured with HTTP referrer restrictions
-        photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxHeightPx=${CONFIG.PHOTO_MAX_WIDTH}&key=${apiKeyForPhotos}`;
-    }
+if (place.photos && place.photos.length > 0) {
+  const photoName = place.photos[0].name;
+  const BROWSER_PLACES_KEY = 'AIzaSyBUqTZXhK9NfLmpCl04abAcxZej7LDdyGI'; // 瀏覽器金鑰
+  // 1) name 要 encode
+  // 2) 建議只帶 maxWidthPx
+  photoUrl = `https://places.googleapis.com/v1/${encodeURIComponent(photoName)}/media?maxWidthPx=${CONFIG.PHOTO_MAX_WIDTH || 1200}&key=${BROWSER_PLACES_KEY}`;
+}
 
     return {
         id: place.id,
