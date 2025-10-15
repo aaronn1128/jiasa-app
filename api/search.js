@@ -1,23 +1,29 @@
 // api/search.js
 module.exports = async function (request, response) {
-  const { lat, lng, radius } = request.query;
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+const { lat, lng, radius, lang } = request.query;
+const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
-  if (!apiKey) {
-    return response.status(500).json({ error: "Missing API key" });
-  }
+if (!apiKey) {
+  return response.status(500).json({ error: "Missing API key" });
+}
 
-  const url = "https://places.googleapis.com/v1/places:searchNearby";
-  const payload = {
-    includedTypes: ["restaurant", "cafe", "bar", "bakery"],
-    maxResultCount: 20,
-    locationRestriction: {
-      circle: {
-        center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
-        radius: parseInt(radius, 10),
-      },
+// 把前端傳來的語系轉成 Google 需要的格式
+const langMap = { 'zh': 'zh-TW', 'zh-TW': 'zh-TW', 'en': 'en', 'en-US': 'en' };
+const languageCode = langMap[lang] || 'zh-TW';
+
+const url = "https://places.googleapis.com/v1/places:searchNearby";
+const payload = {
+  includedTypes: ["restaurant", "cafe", "bar", "bakery"],
+  maxResultCount: 20,
+  languageCode,      // ✅ 加語系
+  regionCode: "TW",  // ✅ 輔助在台灣場景
+  locationRestriction: {
+    circle: {
+      center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
+      radius: parseInt(radius, 10),
     },
-  };
+  },
+};
 
   try {
     const googleResponse = await fetch(url, {
