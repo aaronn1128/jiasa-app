@@ -7,7 +7,6 @@ import * as UI from './ui.js';
 import { analytics } from './analytics.js';
 
 // 2. 匯出需要給 ui.js 使用的函式 (解決模組循環依賴)
-export { choose, nextCard, openModal };
 
 // 3. 定義核心類別
 class RecommendationEngine {
