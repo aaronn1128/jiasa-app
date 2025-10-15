@@ -104,12 +104,15 @@ export default async function handler(request, response) {
       body: JSON.stringify(googleRequestPayload),
     });
 
-    if (!googleResponse.ok) {
-      const errorBody = await googleResponse.text();
-      console.error(`Google API Error: ${googleResponse.status}`, errorBody);
-      // 保留原本行為：丟 500 回前端
-      throw new Error(`Google API responded with status: ${googleResponse.status}`);
-    }
+if (!googleResponse.ok) {
+  const errorBody = await googleResponse.text();
+  console.error("🔴 Google API Error:", googleResponse.status, errorBody);
+  return response.status(googleResponse.status).json({
+    error: 'Google Places API failed',
+    status: googleResponse.status,
+    body: errorBody
+  });
+}
 
     const data = await googleResponse.json();
     return response.status(200).json(data);
