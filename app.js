@@ -107,9 +107,10 @@ function transformPlaceData(place) {
   // ✅ 先宣告，避免成為未定義變數
   let photoUrl = null;
   if (place.photos && place.photos.length > 0) {
-    const photoName = place.photos[0].name;
-    const BROWSER_PLACES_KEY = 'AIzaSyDex4jcGsgso6jHfCdKD3pcD3PnU4cKjCY'; // 瀏覽器金鑰（已設 referrer）
-    photoUrl = `https://places.googleapis.com/v1/${encodeURIComponent(photoName)}/media?maxWidthPx=${CONFIG.PHOTO_MAX_WIDTH || 1200}&key=${BROWSER_PLACES_KEY}`;
+const photoName = place.photos[0].name; // e.g. "places/ChIJ.../photos/AbCd"
+const BROWSER_PLACES_KEY = 'AIzaSyDex4jcGsgso6jHfCdKD3pcD3PnU4cKjCY';
+// 不要對整個 name 做 encode，保留斜線
+photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${CONFIG.PHOTO_MAX_WIDTH || 1200}&key=${BROWSER_PLACES_KEY}`;
   }
 
   return {
