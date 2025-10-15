@@ -74,7 +74,7 @@ async function getUserLocation() {
 }
 
 async function fetchNearbyPlaces(location, radius = 1500) {
-  const apiUrl = `/api/search?lat=${location.lat}&lng=${location.lng}&radius=${radius}`;
+  const apiUrl = `/api/search?lat=${lat}&lng=${lng}&radius=${radius}&lang=${state.lang || 'zh'}`;
   try {
     const response = await fetch(apiUrl);
     if (!response.ok) {
