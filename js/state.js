@@ -8,13 +8,14 @@ const savedFilters = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.filters
 export const state = {
   lang: localStorage.getItem(CONFIG.STORAGE_KEYS.lang) || "zh",
   currentTheme: localStorage.getItem(CONFIG.STORAGE_KEYS.theme) || 'classic',
-  filters: {
-    ...CONFIG.DEFAULT_FILTERS,
-    ...savedFilters,
-    types: new Set(savedFilters.types || []),
-    cuisines: new Set(savedFilters.cuisines || []),
-    priceLevel: new Set(savedFilters.priceLevel || []),
-  },
+filters: {
+  ...CONFIG.DEFAULT_FILTERS,
+  ...savedFilters,
+  category: savedFilters.category || CONFIG.DEFAULT_FILTERS.category,
+  types: new Set(savedFilters.types || []),
+  cuisines: new Set(savedFilters.cuisines || []),
+  priceLevel: new Set(savedFilters.priceLevel || []),
+},
   
   pool: [],
   index: 0,
@@ -35,9 +36,11 @@ export const state = {
 
 export function saveFilters() {
   const filtersToSave = {
+    distance: state.filters.distance,
+    category: state.filters.category,
+    // 相容保留
     minRating: state.filters.minRating,
     priceLevel: [...state.filters.priceLevel],
-    distance: state.filters.distance,
     types: [...state.filters.types],
     cuisines: [...state.filters.cuisines],
   };

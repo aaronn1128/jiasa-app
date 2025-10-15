@@ -5,7 +5,7 @@ import { I18N, ICONS, CONFIG } from './config.js';
 import { state, saveFavs, saveHistory } from './state.js';
 import { analytics } from './analytics.js';
 // 從 app.js 引入需要回呼的核心邏輯函式
-import { choose, nextCard, openModal as openSettingsModal } from '../app.js';
+import { choose, nextCard, openModal as openSettingsModal } from './app.js';
 
 // ===== UTILITIES (只跟 UI 有關) =====
 export const $ = s => document.querySelector(s);
@@ -38,10 +38,10 @@ export function showToast(message, type = 'info') {
   }, 5000);
 }
 
-
 // ===== SKELETON & ERROR STATES =====
 export function showSkeletonLoader() {
   const stack = $("#stack");
+  if (!stack) return;
   stack.innerHTML = `
     <div class="skeleton-card">
       <div class="skeleton-box skeleton-photo"></div>
@@ -58,6 +58,7 @@ export function showSkeletonLoader() {
 
 export function showErrorState(message) {
   const stack = $("#stack");
+  if (!stack) return;
   stack.innerHTML = `
     <div class="empty-with-action">
       <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -74,15 +75,16 @@ export function showErrorState(message) {
 // ===== BUTTONS & CONTROLS STATE =====
 export function setButtonsLoading(loading) {
   if ($("#applySettings")) $("#applySettings").disabled = loading;
-  $("#btnSkip").disabled = loading;
-  $("#btnChoose").disabled = loading;
+  if ($("#btnSkip")) $("#btnSkip").disabled = loading;
+  if ($("#btnChoose")) $("#btnChoose").disabled = loading;
 }
 
 export function updateUndoBtn() { 
-  $("#btnUndo").disabled = !state.undoSlot; 
+  if ($("#btnUndo")) $("#btnUndo").disabled = !state.undoSlot; 
 }
 
 export function updateSliderBackground(slider) {
+  if (!slider) return;
   const min = parseFloat(slider.min);
   const max = parseFloat(slider.max);
   const val = parseFloat(slider.value);
@@ -105,48 +107,78 @@ function updateThemeOptions() {
   if (!sel) return;
   Array.from(sel.options).forEach(opt=>{
     const themeValue = opt.value; 
-    opt.textContent = (state.lang==='zh') ? opt.getAttribute('data-zh') : (themeValue.charAt(0).toUpperCase() + themeValue.slice(1));
+    opt.textContent = (state.lang==='zh')
+      ? (opt.getAttribute('data-zh') || themeValue)
+      : (themeValue.charAt(0).toUpperCase() + themeValue.slice(1));
   });
 }
 
+// ✅ 改良：元素存在才設定文字；同時處理類型下拉與主題選單的語系文字
 export function renderText() {
-  $("#btnSkip").textContent=t("skip"); 
-  $("#btnChoose").textContent=t("choose"); 
-  $("#btnBackText").textContent=t("back"); 
-  $("#btnFavText").textContent=t("fav");
-  $("#btnMapText").textContent = t("openMap");
-  $("#btnWebText").textContent = t("website");
-  $("#btnUndo").textContent = `↩︎ ${state.lang === 'zh' ? '撤回' : 'Undo'}`;
-  $("#hintKeys").textContent=t("hintKeys");
-  $("#mTitle").textContent=t("settings"); 
-  $("#lblLang").textContent=t("language");
-  $("#lblMinRating").textContent=t("minRating");
-  $("#lblPrice").textContent=t("priceLevel");
-  $("#lblDistance").textContent=t("distance");
-  $("#lblTypes").textContent=t("types");
-  $("#lblCuisine").textContent=t("cuisines");
-  $("#hintRating").textContent=t("hintRating");
-  $("#hintPrice").textContent=t("hintPrice");
-  $("#hintDistance").textContent=t("hintDistance");
-  $("#hintTypes").textContent=t("hintTypes");
-  $("#hintCuisine").textContent=t("hintCuisine");
-  $("#favTitle").textContent=t("favorites"); 
-  $("#histTitle").textContent=t("history");
-  $("#toggleHours").textContent = t("showHours");
-  $("#offlineBadge").textContent = t("offline");
-  $("#btnClearFilters").textContent = t("clearFilters");
+  const set = (sel, text) => { const el = $(sel); if (el) el.textContent = text; };
+
+  set("#btnSkip", t("skip"));
+  set("#btnChoose", t("choose"));
+  set("#btnBackText", t("back"));
+  set("#btnFavText", t("fav"));
+  set("#btnMapText", t("openMap"));
+  set("#btnWebText", t("website"));
+
+  const undoBtn = $("#btnUndo");
+  if (undoBtn) undoBtn.textContent = `↩︎ ${state.lang === 'zh' ? '撤回' : 'Undo'}`;
+
+  set("#hintKeys", t("hintKeys"));
+  set("#mTitle", t("settings"));
+  set("#lblLang", t("language"));
+  set("#lblMinRating", t("minRating"));
+  set("#lblPrice", t("priceLevel"));
+  set("#lblDistance", t("distance"));
+
+  // 舊的：#lblTypes / #lblCuisine 可能已不存在 → 安全地跳過
+  set("#lblTypes", t("types"));
+  set("#lblCuisine", t("cuisines"));
+  set("#hintRating", t("hintRating"));
+  set("#hintPrice", t("hintPrice"));
+  set("#hintDistance", t("hintDistance"));
+  set("#hintTypes", t("hintTypes"));
+  set("#hintCuisine", t("hintCuisine"));
+  set("#favTitle", t("favorites"));
+  set("#histTitle", t("history"));
+  set("#toggleHours", t("showHours"));
+  set("#offlineBadge", t("offline"));
+  set("#btnClearFilters", t("clearFilters"));
+
+  // 免費版新增：類型（單選）標籤（有就設）
+  set("#lblCategory", state.lang === 'zh' ? '類型' : 'Category');
+
+  // 類型選單的 option 文案跟隨語言
+  const catSel = $("#categorySelect");
+  if (catSel) {
+    Array.from(catSel.options).forEach(opt=>{
+      const zh = opt.getAttribute('data-zh');
+      opt.textContent = (state.lang === 'zh' && zh) ? zh : opt.textContent.replace(/\s*&.+?$/, '').trim();
+      // 英文保持你原本寫在 <option> 的文字
+    });
+  }
+
   updateThemeLabel(); 
   updateThemeOptions();
-  $("#applySettings").querySelector("span").textContent=t("apply");
+
+  const applyBtn = $("#applySettings");
+  if (applyBtn) {
+    const span = applyBtn.querySelector("span");
+    if (span) span.textContent = t("apply");
+  }
   
   const navLabels = document.querySelectorAll('.nav-label');
-  navLabels[0].textContent = t("navHome");
-  navLabels[1].textContent = t("navFavorites");
-  navLabels[2].textContent = t("navRefresh");
-  navLabels[3].textContent = t("navHistory");
-  navLabels[4].textContent = t("navSettings");
+  if (navLabels[0]) navLabels[0].textContent = t("navHome");
+  if (navLabels[1]) navLabels[1].textContent = t("navFavorites");
+  if (navLabels[2]) navLabels[2].textContent = t("navRefresh");
+  if (navLabels[3]) navLabels[3].textContent = t("navHistory");
+  if (navLabels[4]) navLabels[4].textContent = t("navSettings");
 }
 
+// ===== 卡片拖曳/堆疊 =====
 function attachDrag(card){
   const likeBadge = card.querySelector('.badge.like');
   const nopeBadge = card.querySelector('.badge.nope');
@@ -220,6 +252,7 @@ function attachDrag(card){
 
 export function renderStack(){
   const stack=$("#stack"); 
+  if (!stack) return;
   stack.innerHTML="";
   const topN = state.pool.slice(state.index, state.index+3);
   
@@ -302,15 +335,14 @@ export function renderStack(){
 
 export function show(screen){ 
   if(screen==="swipe"){ 
-    $("#swipe").style.display="flex";
-    $("#result").style.display="none"; 
+    if ($("#swipe")) $("#swipe").style.display="flex";
+    if ($("#result")) $("#result").style.display="none"; 
     if (state.pool.length > 0) renderStack();
   } else { 
-    $("#swipe").style.display="none"; 
-    $("#result").style.display="flex";
+    if ($("#swipe")) $("#swipe").style.display="none"; 
+    if ($("#result")) $("#result").style.display="flex";
   } 
 }
-
 
 // ===== RESULT & LISTS RENDERING =====
 export function renderBaseResult(r) {
@@ -319,205 +351,217 @@ export function renderBaseResult(r) {
   const rating = `⭐ ${(r.rating || 0).toFixed(1)}`; 
   const priceSymbols = '$'.repeat(Math.max(1, r.price || 1));
   const hero = $("#hero"); 
-  if (r.photoUrl) {
-    hero.src = r.photoUrl;
-    hero.style.display = "block";
-  } else {
-    hero.style.display = "none";
+  if (hero) {
+    if (r.photoUrl) {
+      hero.src = r.photoUrl;
+      hero.style.display = "block";
+    } else {
+      hero.style.display = "none";
+    }
   }
   
   const mainTypes = r.types.filter(t => typeMap[t]).slice(0, 5);
   const typeChips = mainTypes.map(t => `<span class="chip">${typeMap[t] || t}</span>`).join("");
   const priceChip = `<span class="chip" style="background:linear-gradient(135deg,var(--primary),var(--primary-2)); color:#220b07; font-weight:800;">${priceSymbols}</span>`;
   const sponsorBadge = r.isSponsored ? `<div style="display:inline-block; background:linear-gradient(135deg, var(--sponsor), #ffed4e); color:#1b0f0a; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:800; margin-left:8px;">${t("sponsor")}</div>` : '';
-  $("#resultBody").innerHTML = `<div class="title">${rname}${sponsorBadge}</div>
-    <div class="meta" style="margin:6px 0 10px;">${rating}</div>
-    <div class="row">${priceChip}${typeChips}</div>
-    <div class="divider"></div>
-    <div style="color:#ffe7d6;">${r.address || ''}</div>`;
+  const resultBody = $("#resultBody");
+  if (resultBody) {
+    resultBody.innerHTML = `<div class="title">${rname}${sponsorBadge}</div>
+      <div class="meta" style="margin:6px 0 10px;">${rating}</div>
+      <div class="row">${priceChip}${typeChips}</div>
+      <div class="divider"></div>
+      <div style="color:#ffe7d6;">${r.address || ''}</div>`;
+  }
     
-  $("#gEnrich").innerHTML = ""; 
-  
   const hoursBadge = $("#hoursBadge");
   const hoursBox = $("#hoursBox");
   const toggleHours = $("#toggleHours");
-  if (r.opening_hours?.open_now !== undefined && r.opening_hours?.open_now !== null) {
-    hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
-    hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
-  } else {
-    hoursBadge.textContent = "";
-  }
-  
-  if (r.opening_hours?.weekday_text) {
-    const hoursHTML = r.opening_hours.weekday_text.map(day => {
-      const parts = day.split(': ');
-      return `<div class="hours-row"><span class="hours-day">${parts[0]}</span><span>${parts[1] || ''}</span></div>`;
-    }).join('');
-    hoursBox.innerHTML = hoursHTML;
-    toggleHours.style.display = "block";
-  } else {
-    hoursBox.innerHTML = "";
-    toggleHours.style.display = "none";
-  }
-  
-  toggleHours.onclick = () => {
-    hoursBox.classList.toggle("show");
-    toggleHours.textContent = hoursBox.classList.contains("show") ? t("hideHours") : t("showHours");
-  };
-  
-  hoursBox.classList.remove("show");
-  
-  $("#btnMap").disabled = false;
-  $("#btnMap").onclick = ()=> {
-    if (r.googleMapsUrl) {
-      window.open(r.googleMapsUrl, "_blank");
-    } else if (r.location) {
-      const lat = r.location.lat || r.location.latitude;
-      const lng = r.location.lng || r.location.longitude;
-      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
+  if (hoursBadge) {
+    if (r.opening_hours?.open_now !== undefined && r.opening_hours?.open_now !== null) {
+      hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
+      hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
     } else {
-      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rname)}`, "_blank");
+      hoursBadge.textContent = "";
     }
-    analytics.track('action', 'map_click', { place_id: r.id });
-    if (r.isSponsored) analytics.trackSponsor(r, 'map');
-  };
+  }
+  
+  if (hoursBox && toggleHours) {
+    if (r.opening_hours?.weekday_text) {
+      const hoursHTML = r.opening_hours.weekday_text.map(day => {
+        const parts = day.split(': ');
+        return `<div class="hours-row"><span class="hours-day">${parts[0]}</span><span>${parts[1] || ''}</span></div>`;
+      }).join('');
+      hoursBox.innerHTML = hoursHTML;
+      toggleHours.style.display = "block";
+    } else {
+      hoursBox.innerHTML = "";
+      toggleHours.style.display = "none";
+    }
+    toggleHours.onclick = () => {
+      hoursBox.classList.toggle("show");
+      toggleHours.textContent = hoursBox.classList.contains("show") ? t("hideHours") : t("showHours");
+    };
+    hoursBox.classList.remove("show");
+  }
+  
+  const btnMap = $("#btnMap");
+  if (btnMap) {
+    btnMap.disabled = false;
+    btnMap.onclick = ()=> {
+      if (r.googleMapsUrl) {
+        window.open(r.googleMapsUrl, "_blank");
+      } else if (r.location) {
+        const lat = r.location.lat || r.location.latitude;
+        const lng = r.location.lng || r.location.longitude;
+        window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
+      } else {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rname)}`, "_blank");
+      }
+      analytics.track('action', 'map_click', { place_id: r.id });
+      if (r.isSponsored) analytics.trackSponsor(r, 'map');
+    };
+  }
   
   const btnWebsite = $("#btnWebsite");
-  if (r.website) {
-    btnWebsite.style.display = "flex";
-    btnWebsite.href = r.website;
-    btnWebsite.onclick = () => {
-      analytics.track('action', 'website_click', { place_id: r.id });
-      if (r.isSponsored) analytics.trackSponsor(r, 'website');
-    };
-  } else {
-    btnWebsite.style.display = "none";
+  if (btnWebsite) {
+    if (r.website) {
+      btnWebsite.style.display = "flex";
+      btnWebsite.href = r.website;
+      btnWebsite.onclick = () => {
+        analytics.track('action', 'website_click', { place_id: r.id });
+        if (r.isSponsored) analytics.trackSponsor(r, 'website');
+      };
+    } else {
+      btnWebsite.style.display = "none";
+    }
   }
   
   analytics.track('result_view', r.id, { name: r.name });
 }
 
 export function renderFavs() {
-    const list = $("#favList");
-    list.innerHTML="";
-    if(!state.favs.length){ 
-        list.innerHTML = `<div class="empty">${t("emptyFav")}</div>`; 
-        return;
-    }
-    state.favs.forEach(id=>{
-        const r = state.allDemoData.find(x=>x.id===id); // Favorites should be persistent
-        if(!r) return;
-        const row = document.createElement("div"); 
-        row.className="list-item";
-        const left = document.createElement("div"); 
-        left.className="list-left";
-        const thumb = document.createElement("div"); 
-        thumb.className="thumb"; 
-        
-        if (r.photoUrl) {
-          const img = document.createElement("img");
-          img.src = r.photoUrl;
-          thumb.appendChild(img);
-        } else {
-          thumb.textContent = firstCharThumb(r);
-        }
-        const textWrap = document.createElement("div"); 
-        textWrap.style.minWidth="0";
-        textWrap.innerHTML = `<div class="list-title">${nameOf(r)}</div><div class="list-meta">⭐ ${(r.rating||0).toFixed(1)} · ${'$'.repeat(r.price||1)}</div>`;
-        left.appendChild(thumb); 
-        left.appendChild(textWrap);
-        const actions = document.createElement("div");
-        actions.className="row-actions";
-        const viewBtn = document.createElement("button"); 
-        viewBtn.className="i-btn"; 
-        viewBtn.textContent = t("view");
-        const delBtn = document.createElement("button"); 
-        delBtn.className="i-btn"; 
-        delBtn.textContent = t("del");
-        actions.appendChild(viewBtn); 
-        actions.appendChild(delBtn);
-        
-        delBtn.onclick = ()=>{ 
-          state.favs = state.favs.filter(x=>x!==id);
-          saveFavs(); 
-          renderFavs(); 
-          analytics.track('fav_remove', r.id);
-        };
-        viewBtn.onclick = () => { choose(r); closeAllModals(); };
-        row.appendChild(left); 
-        row.appendChild(actions);
-        list.appendChild(row);
-    });
+  const list = $("#favList");
+  if (!list) return;
+  list.innerHTML="";
+  if(!state.favs.length){ 
+      list.innerHTML = `<div class="empty">${t("emptyFav")}</div>`; 
+      return;
+  }
+  state.favs.forEach(id=>{
+      const r = state.allDemoData.find(x=>x.id===id); // Favorites should be persistent
+      if(!r) return;
+      const row = document.createElement("div"); 
+      row.className="list-item";
+      const left = document.createElement("div"); 
+      left.className="list-left";
+      const thumb = document.createElement("div"); 
+      thumb.className="thumb"; 
+      
+      if (r.photoUrl) {
+        const img = document.createElement("img");
+        img.src = r.photoUrl;
+        thumb.appendChild(img);
+      } else {
+        thumb.textContent = firstCharThumb(r);
+      }
+      const textWrap = document.createElement("div"); 
+      textWrap.style.minWidth="0";
+      textWrap.innerHTML = `<div class="list-title">${nameOf(r)}</div><div class="list-meta">⭐ ${(r.rating||0).toFixed(1)} · ${'$'.repeat(r.price||1)}</div>`;
+      left.appendChild(thumb); 
+      left.appendChild(textWrap);
+      const actions = document.createElement("div");
+      actions.className="row-actions";
+      const viewBtn = document.createElement("button"); 
+      viewBtn.className="i-btn"; 
+      viewBtn.textContent = t("view");
+      const delBtn = document.createElement("button"); 
+      delBtn.className="i-btn"; 
+      delBtn.textContent = t("del");
+      actions.appendChild(viewBtn); 
+      actions.appendChild(delBtn);
+      
+      delBtn.onclick = ()=>{ 
+        state.favs = state.favs.filter(x=>x!==id);
+        saveFavs(); 
+        renderFavs(); 
+        analytics.track('fav_remove', r.id);
+      };
+      viewBtn.onclick = () => { choose(r); closeAllModals(); };
+      row.appendChild(left); 
+      row.appendChild(actions);
+      list.appendChild(row);
+  });
 }
 
 export function renderHistory() {
-    const list = $("#histList");
-    list.innerHTML="";
-    if(!state.history.length){ 
-        list.innerHTML = `<div class="empty">${t("emptyHist")}</div>`; 
-        return;
-    }
-    state.history.forEach(item=>{
-        const r = state.allDemoData.find(x=>x.id===item.id); // History should be persistent
-        if(!r) return;
-        const row = document.createElement("div"); 
-        row.className="list-item";
-        const left = document.createElement("div"); 
-        left.className="list-left";
-        const thumb = document.createElement("div"); 
-        thumb.className="thumb"; 
-        
-        if (r.photoUrl) {
-          const img = document.createElement("img");
-          img.src = r.photoUrl;
-          thumb.appendChild(img);
-        } else {
-          thumb.textContent = firstCharThumb(r);
-        }
-        const timeStr = new Date(item.ts).toLocaleString(state.lang==="zh"?"zh-TW":"en-US");
-        const textWrap = document.createElement("div"); 
-        textWrap.style.minWidth="0";
-        textWrap.innerHTML = `<div class="list-title">${nameOf(r)}</div><div class="list-meta">${timeStr}</div>`;
-        left.appendChild(thumb); 
-        left.appendChild(textWrap);
-        const actions = document.createElement("div"); 
-        actions.className="row-actions";
-        const viewBtn = document.createElement("button"); 
-        viewBtn.className="i-btn"; 
-        viewBtn.textContent = t("view");
-        const delBtn = document.createElement("button"); 
-        delBtn.className="i-btn";
-        delBtn.textContent = t("del");
-        actions.appendChild(viewBtn); 
-        actions.appendChild(delBtn);
-        viewBtn.onclick = () => { choose(r); closeAllModals(); };
-        delBtn.onclick = ()=>{ 
-          state.history = state.history.filter(x=>x.ts!==item.ts); 
-          saveHistory(); 
-          renderHistory(); 
-        };
-        row.appendChild(left); 
-        row.appendChild(actions);
-        list.appendChild(row);
-    });
+  const list = $("#histList");
+  if (!list) return;
+  list.innerHTML="";
+  if(!state.history.length){ 
+      list.innerHTML = `<div class="empty">${t("emptyHist")}</div>`; 
+      return;
+  }
+  state.history.forEach(item=>{
+      const r = state.allDemoData.find(x=>x.id===item.id); // History should be persistent
+      if(!r) return;
+      const row = document.createElement("div"); 
+      row.className="list-item";
+      const left = document.createElement("div"); 
+      left.className="list-left";
+      const thumb = document.createElement("div"); 
+      thumb.className="thumb"; 
+      
+      if (r.photoUrl) {
+        const img = document.createElement("img");
+        img.src = r.photoUrl;
+        thumb.appendChild(img);
+      } else {
+        thumb.textContent = firstCharThumb(r);
+      }
+      const timeStr = new Date(item.ts).toLocaleString(state.lang==="zh"?"zh-TW":"en-US");
+      const textWrap = document.createElement("div"); 
+      textWrap.style.minWidth="0";
+      textWrap.innerHTML = `<div class="list-title">${nameOf(r)}</div><div class="list-meta">${timeStr}</div>`;
+      left.appendChild(thumb); 
+      left.appendChild(textWrap);
+      const actions = document.createElement("div"); 
+      actions.className="row-actions";
+      const viewBtn = document.createElement("button"); 
+      viewBtn.className="i-btn"; 
+      viewBtn.textContent = t("view");
+      const delBtn = document.createElement("button"); 
+      delBtn.className="i-btn";
+      delBtn.textContent = t("del");
+      actions.appendChild(viewBtn); 
+      actions.appendChild(delBtn);
+      viewBtn.onclick = () => { choose(r); closeAllModals(); };
+      delBtn.onclick = ()=>{ 
+        state.history = state.history.filter(x=>x.ts!==item.ts); 
+        saveHistory(); 
+        renderHistory(); 
+      };
+      row.appendChild(left); 
+      row.appendChild(actions);
+      list.appendChild(row);
+  });
 }
 
 // ===== MODALS =====
 function setFocusToCloseButton(modalId) {
-    setTimeout(() => {
-        let closeBtn;
-        if (modalId === 'modal') closeBtn = $("#btnClose");
-        else if (modalId === 'favModal') closeBtn = $("#favClose");
-        else if (modalId === 'histModal') closeBtn = $("#histClose");
-        if (closeBtn) closeBtn.focus();
-    }, 100);
+  setTimeout(() => {
+      let closeBtn;
+      if (modalId === 'modal') closeBtn = $("#btnClose");
+      else if (modalId === 'favModal') closeBtn = $("#favClose");
+      else if (modalId === 'histModal') closeBtn = $("#histClose");
+      if (closeBtn) closeBtn.focus();
+  }, 100);
 }
 
 export function closeAllModals() {
   document.querySelectorAll('.modal.active, .overlay.active').forEach(el => el.classList.remove('active'));
   if(state.staged && !state.staged.applied){
-    state.lang = state.staged.original.lang;
-    state.currentTheme = state.staged.original.theme;
+    state.lang = state.staged.original?.lang ?? state.lang;
+    state.currentTheme = state.staged.original?.theme ?? state.currentTheme;
     applyTheme(state.currentTheme);
     renderText();
   }
@@ -537,8 +581,8 @@ export function updateNavActive(activeId) {
 
 export function openFavModal(){
   closeAllModals();
-  $("#favOverlay").classList.add("active"); 
-  $("#favModal").classList.add("active");
+  if ($("#favOverlay")) $("#favOverlay").classList.add("active"); 
+  if ($("#favModal")) $("#favModal").classList.add("active");
   updateNavActive('navFavs');
   renderFavs();
   setFocusToCloseButton('favModal');
@@ -547,32 +591,52 @@ export function openFavModal(){
 
 export function openHistModal(){
   closeAllModals();
-  $("#histOverlay").classList.add("active"); 
-  $("#histModal").classList.add("active");
+  if ($("#histOverlay")) $("#histOverlay").classList.add("active"); 
+  if ($("#histModal")) $("#histModal").classList.add("active");
   updateNavActive('navHistory');
   renderHistory();
   setFocusToCloseButton('histModal');
   analytics.track('modal_open', 'history');
 }
 
+// ✅ 加防呆：元素不存在就跳過（你已移除 types/cuisine 的 DOM）
 export function syncUIFromStaged(){
-  $("#langSelModal").value = state.staged.preview.lang;
-  $("#themeSelect").value = state.staged.preview.theme;
+  if (!state.staged) return;
+  const langSel = $("#langSelModal");
+  if (langSel) langSel.value = state.staged.preview.lang;
+  const themeSel = $("#themeSelect");
+  if (themeSel) themeSel.value = state.staged.preview.theme;
+
   const ratingSlider = $("#minRating");
-  ratingSlider.value = state.staged.filters.minRating;
-  $("#ratingShow").textContent = state.staged.filters.minRating.toFixed(1) + "+";
-  updateSliderBackground(ratingSlider);
+  if (ratingSlider) {
+    ratingSlider.value = state.staged.filters.minRating;
+    const ratingShow = $("#ratingShow");
+    if (ratingShow) ratingShow.textContent = state.staged.filters.minRating.toFixed(1) + "+";
+    updateSliderBackground(ratingSlider);
+  }
 
   const distanceSlider = $("#distance");
-  distanceSlider.value = state.staged.filters.distance;
-  $("#distanceShow").textContent = "≤ " + state.staged.filters.distance + "m";
-  updateSliderBackground(distanceSlider);
+  if (distanceSlider) {
+    distanceSlider.value = state.staged.filters.distance;
+    const distanceShow = $("#distanceShow");
+    if (distanceShow) distanceShow.textContent = "≤ " + state.staged.filters.distance + "m";
+    updateSliderBackground(distanceSlider);
+  }
   
+  // 類型（單選）下拉：若存在就帶值
+  const catSel = $("#categorySelect");
+  if (catSel && state.staged.filters?.category) {
+    catSel.value = state.staged.filters.category;
+  }
+
   renderText();
   renderOptionPillsFromStaged();
 }
 
+// ✅ 加防呆：沒有 rows 就直接 return（免費版可無此區）
 export function renderOptionPillsFromStaged(){
+  if (!state.staged) return;
+
   const typeKeys = ["restaurant", "cafe", "bar", "bakery", "meal_takeaway", "meal_delivery"];
   const cuisineKeys = ["japanese", "chinese", "italian", "thai", "korean", "vietnamese", "western", "vegetarian", "seafood", "bbq", "hotpot", "noodles"];
   const priceKeys = [1, 2, 3, 4];
@@ -581,74 +645,105 @@ export function renderOptionPillsFromStaged(){
   const typesRow = $("#typesRow");
   const cuRow = $("#cuisineRow");
   const priceRow = $("#priceRow");
-  typesRow.innerHTML=""; 
-  cuRow.innerHTML="";
-  priceRow.innerHTML="";
-  
+
   const currentLang = state.staged ? state.staged.preview.lang : state.lang;
   const typeMap = I18N[currentLang].typeText;
   const cuMap = I18N[currentLang].cuText;
-  
-  priceKeys.forEach((level, idx)=>{
-    const btn = document.createElement("button"); 
-    btn.className="pill"; 
-    btn.textContent=priceLabels[idx];
-    if(state.staged.filters.priceLevel.has(level)){
-      btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
-      btn.style.color="#220b07"; 
-    }
-    btn.onclick = ()=>{
-      if(state.staged.filters.priceLevel.has(level)) {
-        state.staged.filters.priceLevel.delete(level);
-      } else {
-        state.staged.filters.priceLevel.add(level);
+
+  // 如果這些區塊不存在（免費版），就不渲染
+  if (!typesRow && !cuRow && !priceRow) return;
+
+  if (priceRow) {
+    priceRow.innerHTML="";
+    priceKeys.forEach((level, idx)=>{
+      const btn = document.createElement("button"); 
+      btn.className="pill"; 
+      btn.textContent=priceLabels[idx];
+      if(state.staged.filters.priceLevel.has(level)){
+        btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
+        btn.style.color="#220b07"; 
       }
-      renderOptionPillsFromStaged(); 
-    };
-    priceRow.appendChild(btn);
-  });
+      btn.onclick = ()=>{
+        if(state.staged.filters.priceLevel.has(level)) {
+          state.staged.filters.priceLevel.delete(level);
+        } else {
+          state.staged.filters.priceLevel.add(level);
+        }
+        renderOptionPillsFromStaged(); 
+      };
+      priceRow.appendChild(btn);
+    });
+  }
 
-  typeKeys.forEach(k=>{
-    const btn = document.createElement("button"); 
-    btn.className="pill"; 
-    btn.textContent=typeMap[k] || k;
-    if(state.staged.filters.types.has(k)){ 
-      btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
-      btn.style.color="#220b07"; 
-    }
-    btn.onclick = ()=>{ 
-      if(state.staged.filters.types.has(k)) state.staged.filters.types.delete(k); 
-      else state.staged.filters.types.add(k); 
-      renderOptionPillsFromStaged(); 
-    };
-    typesRow.appendChild(btn);
-  });
+  if (typesRow) {
+    typesRow.innerHTML="";
+    typeKeys.forEach(k=>{
+      const btn = document.createElement("button"); 
+      btn.className="pill"; 
+      btn.textContent=typeMap[k] || k;
+      if(state.staged.filters.types.has(k)){ 
+        btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
+        btn.style.color="#220b07"; 
+      }
+      btn.onclick = ()=>{ 
+        if(state.staged.filters.types.has(k)) state.staged.filters.types.delete(k); 
+        else state.staged.filters.types.add(k); 
+        renderOptionPillsFromStaged(); 
+      };
+      typesRow.appendChild(btn);
+    });
+  }
 
-  cuisineKeys.forEach(k=>{
-    const btn = document.createElement("button"); 
-    btn.className="pill"; 
-    btn.textContent=cuMap[k] || k;
-    if(state.staged.filters.cuisines.has(k)){ 
-      btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
-      btn.style.color="#220b07"; 
-    }
-    btn.onclick = ()=>{ 
-      if(state.staged.filters.cuisines.has(k)) state.staged.filters.cuisines.delete(k); 
-      else state.staged.filters.cuisines.add(k); 
-      renderOptionPillsFromStaged(); 
-    };
-    cuRow.appendChild(btn);
-  });
+  if (cuRow) {
+    cuRow.innerHTML="";
+    cuisineKeys.forEach(k=>{
+      const btn = document.createElement("button"); 
+      btn.className="pill"; 
+      btn.textContent=cuMap[k] || k;
+      if(state.staged.filters.cuisines.has(k)){ 
+        btn.style.background="linear-gradient(180deg, var(--primary), var(--primary-2))"; 
+        btn.style.color="#220b07"; 
+      }
+      btn.onclick = ()=>{ 
+        if(state.staged.filters.cuisines.has(k)) state.staged.filters.cuisines.delete(k); 
+        else state.staged.filters.cuisines.add(k); 
+        renderOptionPillsFromStaged(); 
+      };
+      cuRow.appendChild(btn);
+    });
+  }
 }
 
 export function clearAllFiltersInModal() {
   if (!state.staged) return;
   state.staged.filters.minRating = CONFIG.DEFAULT_FILTERS.minRating;
-  state.staged.filters.priceLevel.clear();
+  if (state.staged.filters.priceLevel?.clear) state.staged.filters.priceLevel.clear();
   state.staged.filters.distance = CONFIG.DEFAULT_FILTERS.distance;
-  state.staged.filters.types.clear();
-  state.staged.filters.cuisines.clear();
+  if (state.staged.filters.types?.clear) state.staged.filters.types.clear();
+  if (state.staged.filters.cuisines?.clear) state.staged.filters.cuisines.clear();
   syncUIFromStaged();
   showToast(t('filtersCleared'), 'success');
   analytics.track('filters', 'clear_all');
+}
+
+// ===== Modal 顯示控制（供 app.js 使用）=====
+export function showModal(show) {
+  if (show) {
+    closeAllModals();
+    if ($("#overlay")) $("#overlay").classList.add("active");
+    if ($("#modal")) $("#modal").classList.add("active");
+    updateNavActive('navSettings');
+    setFocusToCloseButton('modal');
+  } else {
+    closeAllModals();
+  }
+}
+
+// ===== Loading/Error 包裝（供 app.js 使用）=====
+export function renderLoading(on) {
+  if (on) showSkeletonLoader();
+  // 關閉時不特別清空，由 buildPool/renderStack 接手
+}
+export function renderError(msg) {
+  showErrorState(msg || t('error'));
 }

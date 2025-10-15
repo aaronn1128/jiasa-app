@@ -19,9 +19,13 @@ export const CONFIG = {
     analytics: 'jiasa_analytics'
   },
   DEFAULT_FILTERS: {
-    minRating: 3,
+    // 免費版預設：距離 & 類型（其餘保留結構相容）
+    distance: 500,                 // 300 / 500 / 1000 / 1500 / 2000
+    category: 'restaurant',        // 'restaurant' | 'cafe_dessert' | 'bar'
+
+    // 以下欄位先保留，讓 state / UI 舊程式不會炸（免費版不使用）
+    minRating: 0,
     priceLevel: [],
-    distance: 1500,
     types: [],
     cuisines: []
   }
