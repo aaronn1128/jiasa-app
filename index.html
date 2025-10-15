@@ -143,16 +143,14 @@
           </div>
         </div>
       </div>
-      <div class="section">
-        <div class="label" id="lblTypes">餐廳類型</div>
-        <div class="row" id="typesRow"></div>
-        <div class="hint" id="hintTypes" style="display:none;">可選擇多個類型，未選表示全部。</div>
-      </div>
-      <div class="section">
-        <div class="label" id="lblCuisine">料理風格(關鍵字)</div>
-        <div class="row" id="cuisineRow"></div>
-        <div class="hint" id="hintCuisine" style="display:none;">作為搜尋關鍵字使用。</div>
-      </div>
+<div class="section">
+  <div class="label" id="lblCategory">類型</div>
+  <select class="select" id="categorySelect">
+    <option value="restaurant" data-zh="餐廳">Restaurant</option>
+    <option value="cafe_dessert" data-zh="下午茶＆輕食">Afternoon Tea & Light Meal</option>
+    <option value="bar" data-zh="酒吧">Bar</option>
+  </select>
+</div>
       <div class="section">
         <div class="label" id="lblLang">語言</div>
         <select class="select" id="langSelModal">

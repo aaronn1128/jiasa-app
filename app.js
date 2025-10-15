@@ -1,10 +1,10 @@
 // app.js (完整版 - 總指揮)
 
 // 1. 從各部門引入需要的工具和狀態
-import { CONFIG } from './js/config.js';
-import { state, saveFilters, saveFavs, saveHistory } from './js/state.js';
-import * as UI from './js/ui.js';
-import { analytics } from './js/analytics.js';
+import { CONFIG } from './config.js';
+import { state, saveFilters, saveFavs, saveHistory } from './state.js';
+import * as UI from './ui.js';
+import { analytics } from './analytics.js';
 
 // 2. 匯出需要給 ui.js 使用的函式 (解決模組循環依賴)
 export { choose, nextCard, openModal };
@@ -29,36 +29,66 @@ class RecommendationEngine {
         }
         const priceKey = `price_${restaurant.price}`;
         this.preferences.priceRange[priceKey] = (this.preferences.priceRange[priceKey] || 0) + weight;
-        if (liked && restaurant.rating) {
-            this.preferences.minRatingPreferred = Math.max(this.preferences.minRatingPreferred || 0, restaurant.rating);
-        }
-        this.save();
+        localStorage.setItem(CONFIG.STORAGE_KEYS.preferences, JSON.stringify(this.preferences));
     }
     score(restaurant) {
         let score = 0;
-        restaurant.types.forEach(type => { score += this.preferences.types?.[type] || 0; });
-        if (restaurant.cuisines) {
-            restaurant.cuisines.forEach(cuisine => { score += this.preferences.cuisines?.[cuisine] || 0; });
+        if (this.preferences.types) {
+            restaurant.types.forEach(type => {
+                score += this.preferences.types[type] || 0;
+            });
         }
-        const priceKey = `price_${restaurant.price}`;
-        score += this.preferences.priceRange?.[priceKey] || 0;
-        if (restaurant.rating >= (this.preferences.minRatingPreferred || 4.0)) score += 2;
+        if (this.preferences.cuisines) {
+            if (restaurant.cuisines) {
+                restaurant.cuisines.forEach(cuisine => {
+                    score += this.preferences.cuisines[cuisine] || 0;
+                });
+            }
+        }
+        if (this.preferences.priceRange) {
+            const priceKey = `price_${restaurant.price}`;
+            score += this.preferences.priceRange[priceKey] || 0;
+        }
+        const distanceScore = restaurant.distance ? 1 / (1 + restaurant.distance / 1000) : 0;
+        const ratingScore = restaurant.rating || 0;
+        score += 0.6 * distanceScore + 0.4 * ratingScore;
         return score;
     }
-    sortPool(restaurants) {
-        return restaurants.filter(r => !r.isOnboarding && !r.isSponsored).sort((a, b) => this.score(b) - this.score(a));
+    sortPool(pool) {
+        return pool.slice().sort((a, b) => this.score(b) - this.score(a));
     }
-    save() { localStorage.setItem(CONFIG.STORAGE_KEYS.preferences, JSON.stringify(this.preferences)); }
 }
+
 const recommender = new RecommendationEngine();
 
-// 4. 核心商業邏輯
-async function getUserLocation() {
+// 4. 工具函式
+function metersToReadable(meters) {
+    if (meters < 1000) return `${Math.round(meters)}m`;
+    return `${(meters / 1000).toFixed(1)}km`;
+}
+
+function transformPlaceData(p) {
+    const photoRef = p.photos?.[0]?.name || null;
+    return {
+        id: p.id,
+        name: p.displayName?.text || '',
+        address: p.formattedAddress || '',
+        rating: p.rating || 0,
+        price: p.priceLevel || null,
+        types: p.types || [],
+        location: p.location || null,
+        distance: p.distanceMeters || null,
+        photoRef,
+        opening_hours: { open_now: p.regularOpeningHours?.openNow ?? true },
+        website: p.websiteUri || '',
+        googleMapsUrl: p.googleMapsUri || '',
+        isSponsored: false
+    };
+}
+
+function getUserLocation() {
     return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error('Geolocation not supported'));
-          return;
-        }
+        if (!navigator.geolocation) return reject(new Error('Geolocation not supported'));
         navigator.geolocation.getCurrentPosition(
           position => {
             state.userLocation = {
@@ -73,337 +103,175 @@ async function getUserLocation() {
     });
 }
 
-async function fetchNearbyPlaces(location, radius = 1500) {
+// ✅ 改好的：帶 language + category 的 Nearby 查詢（免費版邏輯）
+async function fetchNearbyPlaces(location, radius = 500) {
   const { lat, lng } = location || {};
   const lang = state.lang || 'zh';
+  const category = state.filters?.category || 'restaurant';
 
   const apiUrl =
-    `/api/search?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius=${radius}&lang=${encodeURIComponent(lang)}`;
+    `/api/search?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius=${radius}` +
+    `&lang=${encodeURIComponent(lang)}&category=${encodeURIComponent(category)}`;
 
+  const response = await fetch(apiUrl);
+  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  const data = await response.json();
+  return data.places || [];
+}
+
+// 5. 主流程：建立卡片池
+export async function buildPool() {
   try {
-    const response = await fetch(apiUrl);
-    if (!response.ok) throw new Error(`API request failed: ${response.status}`);
-    const data = await response.json();
-    return data.places || [];
-  } catch (error) {
-    console.error('Search error via proxy:', error);
-    throw error;
-  }
-}
+    state.isLoading = true;
+    UI.setButtonsLoading(true);
+    UI.renderLoading(true);
 
-function transformPlaceData(place) {
-  const types = place.types || ['restaurant'];
-  const name = place.displayName?.text || place.formattedAddress || 'Unknown Name';
-  const cuisineGuess = [];
-  const nameLower = name.toLowerCase();
+    // Demo 模式（如果有）
+    if (state.demoMode) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      state.allDemoData = generateDemoData();
+      state.pool = [...state.allDemoData]; // Create a copy for manipulation
+      if (!state.hasSeenOnboarding) state.pool.unshift(createOnboardingCard());
+      state.index = 0;
+      analytics.track('filter_apply', 'demo', { count: state.pool.length });
+      state.isLoading = false;
+      UI.setButtonsLoading(false);
+      UI.renderStack();
+      return;
+    }
 
-  if (nameLower.includes('japanese') || nameLower.includes('sushi') || nameLower.includes('ramen') || nameLower.includes('日式') || nameLower.includes('日本')) cuisineGuess.push('japanese');
-  if (nameLower.includes('chinese') || nameLower.includes('dim sum') || nameLower.includes('中式') || nameLower.includes('中國')) cuisineGuess.push('chinese');
-  if (nameLower.includes('italian') || nameLower.includes('pizza') || nameLower.includes('pasta') || nameLower.includes('義式')) cuisineGuess.push('italian');
-  if (nameLower.includes('thai') || nameLower.includes('泰式')) cuisineGuess.push('thai');
-  if (nameLower.includes('korean') || nameLower.includes('bbq') || nameLower.includes('韓式')) cuisineGuess.push('korean');
-  if (nameLower.includes('vietnamese') || nameLower.includes('pho') || nameLower.includes('越南')) cuisineGuess.push('vietnamese');
-
-  // ✅ 先宣告，避免成為未定義變數
-  let photoUrl = null;
-  if (place.photos && place.photos.length > 0) {
-const photoName = place.photos[0].name; // e.g. "places/ChIJ.../photos/AbCd"
-const BROWSER_PLACES_KEY = 'AIzaSyDex4jcGsgso6jHfCdKD3pcD3PnU4cKjCY';
-// 不要對整個 name 做 encode，保留斜線
-photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${CONFIG.PHOTO_MAX_WIDTH || 1200}&key=${BROWSER_PLACES_KEY}`;
-  }
-
-  return {
-    id: place.id,
-    place_id: place.id,
-    name,
-    rating: place.rating || 0,
-    price: convertPriceLevel(place.priceLevel),
-    address: place.formattedAddress || '',
-    types,
-    cuisines: cuisineGuess,
-    location: place.location,
-    photoUrl, // ✅ 正常帶出
-    opening_hours: {
-      open_now: place.regularOpeningHours ? place.regularOpeningHours.openNow : null,
-      weekday_text: place.regularOpeningHours ? place.regularOpeningHours.weekdayDescriptions : null
-    },
-    website: place.websiteUri || null,
-    googleMapsUrl: place.googleMapsUri || null,
-    isSponsored: false
-  };
-}
-
-function convertPriceLevel(priceLevel) {
-    if (!priceLevel) return 2;
-    const priceMap = {
-        'PRICE_LEVEL_FREE': 1,
-        'PRICE_LEVEL_INEXPENSIVE': 1,
-        'PRICE_LEVEL_MODERATE': 2,
-        'PRICE_LEVEL_EXPENSIVE': 3,
-        'PRICE_LEVEL_VERY_EXPENSIVE': 4
-    };
-    return priceMap[priceLevel] || 2;
-}
-
-function generateDemoData() {
-    return Array.from({length:20}).map((_,i)=>{
-        const id = 'demo_' + (i+1);
-        const types = [["restaurant"],["cafe"],["restaurant","bar"],["bakery"],["restaurant","meal_takeaway"]][i%5];
-        const cuisines = [["japanese"],["chinese"],["italian"],["thai"],["korean"]][i%5];
-        const price = [1,2,2,3,4][i%5];
-        const rating = [4.0,4.5,4.2,3.8,4.7][i%5];
-        const names = ["示範餐廳","測試咖啡","Sample Restaurant","Test Cafe","デモ店"];
-        const websites = ["https://example.com/restaurant1", "https://example.com/cafe1", null, "https://example.com/bakery1", "https://example.com/restaurant2"];
-        const isSponsored = (i+1) % 7 === 0;
-        const openingHours = { open_now: i % 3 !== 0, weekday_text: [ "星期一: 11:00 – 21:00", "星期二: 11:00 – 21:00", "星期三: 11:00 – 21:00", "星期四: 11:00 – 21:00", "星期五: 11:00 – 22:00", "星期六: 10:00 – 22:00", "星期日: 10:00 – 21:00" ] };
-        return { id, place_id: id, name: names[i%5] + ' ' + (i+1), rating, price, address: "台北市信義區 Sample St. " + (i+1), types, cuisines, location: {lat: 25.04 + i*0.001, lng: 121.56 + i*0.001}, photos: [], photoUrl: null, opening_hours: openingHours, website: websites[i % 5], isSponsored: isSponsored };
-    });
-}
-
-function createOnboardingCard() {
-    return { id: '__onboarding__', isOnboarding: true, type: 'onboarding' };
-}
-
-async function buildPool() {
-  state.isLoading = true;
-  UI.setButtonsLoading(true);
-  UI.showSkeletonLoader();
-  
-  let allPlacesRaw;
-  
-  if (CONFIG.DEMO_MODE) {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    state.allDemoData = generateDemoData();
-    state.pool = [...state.allDemoData]; // Create a copy for manipulation
-    if (!state.hasSeenOnboarding) state.pool.unshift(createOnboardingCard());
-    state.index = 0;
-    analytics.track('filter_apply', 'demo', { count: state.pool.length });
-    state.isLoading = false;
-    UI.setButtonsLoading(false);
-    UI.renderStack();
-    return;
-  }
-  
-  try {
+    // 取定位
     if (!state.userLocation) {
       UI.showToast(UI.t('searching'), 'info');
       await getUserLocation();
     }
-    
-    allPlacesRaw = await fetchNearbyPlaces(state.userLocation, state.filters.distance);
+
+    // 後端 Nearby：距離 + 類型 + 語言（一次取 20 筆）
+    const allPlacesRaw = await fetchNearbyPlaces(state.userLocation, state.filters.distance);
     let allPlaces = allPlacesRaw.map(transformPlaceData);
     state.allDemoData = allPlaces;
-    
-    state.pool = allPlaces.filter(r => {
-        if (r.opening_hours?.open_now !== true) return false;
-        if (r.rating < state.filters.minRating) return false;
-        if (state.filters.priceLevel.size > 0 && !state.filters.priceLevel.has(r.price)) return false;
-        if (state.filters.types.size > 0 && !r.types.some(t => state.filters.types.has(t))) return false;
-        // ... (cuisine filter logic can be added here)
-        return true;
-    });
 
+    // ✅ 免費版：不在前端再硬卡評分/價位/types，直接用回傳清單
+    state.pool = allPlaces;
+
+    // 推薦排序（維持原體驗）
     const normalRestaurants = state.pool.filter(r => !r.isSponsored);
     const sortedNormal = recommender.sortPool(normalRestaurants);
     state.pool = sortedNormal;
-    
+
+    // Onboarding
     if (!state.hasSeenOnboarding) {
       state.pool.unshift(createOnboardingCard());
     }
-    
+
     state.index = 0;
-    if (state.pool.length === 0) {
-      UI.showErrorState(UI.t('noMatches'));
-    }
-    
-    analytics.track('filter_apply', 'completed', { count: state.pool.length });
+    analytics.track('filter_apply', 'nearby', { count: state.pool.length });
+    UI.renderStack();
   } catch (error) {
-    console.error('Build pool error:', error);
-    UI.showErrorState(UI.t('searchError'));
-    analytics.track('api_error', 'build_pool_failed', { error: error.message });
+    console.error(error);
+    UI.renderError(error?.message || 'Loading failed');
   } finally {
     state.isLoading = false;
     UI.setButtonsLoading(false);
+    UI.renderLoading(false);
   }
 }
 
-function choose(r) {
-  if (r.isOnboarding) {
-    state.hasSeenOnboarding = true;
-    localStorage.setItem(CONFIG.STORAGE_KEYS.onboarding, "true");
-    analytics.track('onboarding', 'complete');
+// 互動：左右滑
+export function choose(liked) {
+    const current = state.pool[state.index];
+    if (current) {
+        recommender.learn(current, liked);
+        saveHistory(current, liked);
+    }
+    state.index++;
+    if (state.index >= state.pool.length - 3) {
+        UI.showToast(UI.t('loading_more'), 'info');
+    }
+    UI.renderStack();
+}
+
+export function nextCard() {
     state.index++;
     UI.renderStack();
-    return;
-  }
-  
-  state.current = r;
-  if (!state.history.some(item => item.id === r.id)) {
-      state.history.unshift({id:r.id, ts: Date.now()}); 
-      state.history = state.history.slice(0,50); 
-      saveHistory();
-  }
-  
-  const chosenIndex = state.pool.findIndex(item => item.id === r.id);
-  if (chosenIndex !== -1) { 
-    state.pool.splice(chosenIndex, 1);
-    if (state.index >= state.pool.length && state.pool.length > 0) state.index = 0; 
-  }
-  state.undoSlot = null; 
-  UI.updateUndoBtn();
-  
-  analytics.trackSwipe(r, 'like');
-  recommender.learn(r, true);
-  if (r.isSponsored) analytics.trackSponsor(r, 'like');
-  
-  UI.renderBaseResult(r); 
-  UI.show("result");
 }
 
-function nextCard(liked) {
-  const r = state.pool[state.index]; 
-  if(!r) return;
-  
-  if (r.isOnboarding) {
-    state.hasSeenOnboarding = true;
-    localStorage.setItem(CONFIG.STORAGE_KEYS.onboarding, "true");
-    analytics.track('onboarding', liked ? 'liked' : 'skipped');
-    state.index++;
-    UI.renderStack();
-    return;
-  }
-  
-  if(!liked){ 
-    state.undoSlot = { indexBefore: state.index, restaurant: r };
-    analytics.trackSwipe(r, 'skip');
-    recommender.learn(r, false);
-  } else { 
-    state.undoSlot = null;
-  }
-  
-  if(liked){ choose(r); return; }
-
-  state.index++;
-  if (state.index >= state.pool.length) {
-      if (state.pool.length > 0) state.index = 0; // Loop back
-      else UI.showErrorState(UI.t('noMatches'));
-  }
-  
-  UI.renderStack(); 
-}
-
-function addFav(r) {
-    if(!state.favs.includes(r.id)){ 
-        state.favs.unshift(r.id);
-        saveFavs();
-        analytics.track('fav_add', r.id);
-        UI.showToast(UI.t('favoriteAdded'), 'success');
-    } 
-}
-
-// 5. 事件與流程控制
-function openModal() {
-    UI.closeAllModals();
+// 設定面板
+export function openModal() {
+    // 建立 staged 狀態
     state.staged = {
-        original: { lang: state.lang, theme: state.currentTheme },
-        preview: { lang: state.lang, theme: state.currentTheme },
+        preview: { theme: state.currentTheme },
         filters: { 
-          minRating: state.filters.minRating, priceLevel: new Set(state.filters.priceLevel),
-          distance: state.filters.distance, types: new Set(state.filters.types), cuisines: new Set(state.filters.cuisines) 
+          category: state.filters.category || 'restaurant',
+          minRating: state.filters.minRating, 
+          priceLevel: new Set(state.filters.priceLevel),
+          distance: state.filters.distance, 
+          types: new Set(state.filters.types), 
+          cuisines: new Set(state.filters.cuisines) 
         },
         applied: false
     };
-    UI.$("#overlay").classList.add("active"); 
-    UI.$("#modal").classList.add("active");
+
+    UI.showModal(true);
     UI.syncUIFromStaged();
-    analytics.track('modal_open', 'settings');
+    // 讓類型選單顯示目前值
+    const catSel = UI.$('#categorySelect');
+    if (catSel && state.staged?.filters?.category) catSel.value = state.staged.filters.category;
 }
 
+// 套用設定
 async function applySettings() {
-    if(!state.staged) return;
-    
-    state.lang = state.staged.preview.lang; 
-    localStorage.setItem(CONFIG.STORAGE_KEYS.lang, state.lang);
-    state.currentTheme = state.staged.preview.theme; 
-    localStorage.setItem(CONFIG.STORAGE_KEYS.theme, state.currentTheme); 
-    UI.applyTheme(state.currentTheme);
-    
-    state.filters = { ...state.filters, ...state.staged.filters };
-    
-    localStorage.setItem(CONFIG.STORAGE_KEYS.configured, "true"); 
-    saveFilters();
-    state.hasConfigured = true; 
-    state.staged.applied = true; 
-    
-    UI.closeAllModals();
-    UI.show('swipe');
-    UI.renderText();
-    
-    await buildPool();
-    UI.renderStack();
-}
-
-async function retryBuildPool() {
-    analytics.track('action', 'retry_search');
-    await buildPool();
-    UI.renderStack();
-}
-
-function setupEventHandlers() {
-    UI.$("#btnSkip").onclick = () => nextCard(false);
-    UI.$("#btnChoose").onclick = () => nextCard(true);
-    UI.$("#btnBack").onclick = () => { UI.show("swipe"); };
-    UI.$("#btnFav").onclick = () => { if(state.current) addFav(state.current); UI.show("swipe"); };
-    UI.$("#btnUndo").onclick = ()=>{ 
-        if(!state.undoSlot) return;
-        state.index = state.undoSlot.indexBefore; 
-        state.undoSlot = null; 
-        UI.renderStack(); 
-        analytics.track('action', 'undo');
-    };
-
-    // Nav buttons
-    UI.$("#navHome").addEventListener('click', () => {
-        if (UI.$("#swipe").style.display === "none") UI.show('swipe');
-        UI.closeAllModals();
-        UI.updateNavActive('navHome');
-    });
-    UI.$("#navFavs").addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); UI.openFavModal(); });
-    UI.$("#navHistory").addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); UI.openHistModal(); });
-    UI.$("#navSettings").addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openModal(); });
-    UI.$("#navRefresh").addEventListener('click', async () => {
-        if (state.isLoading) return;
-        UI.showToast(UI.t('refreshing'), 'info');
-        analytics.track('nav', 'refresh');
+    try {
+        if (!state.staged) return;
+        state.filters = { ...state.filters, ...state.staged.filters }; // ✅ 會把 category 也寫回
+        saveFilters();
+        analytics.track('settings_apply', 'filters', { distance: state.filters.distance, category: state.filters.category });
         await buildPool();
-        UI.renderStack();
-        UI.showToast(UI.t('refreshed'), 'success');
-    });
-    
-    // Modals
-    UI.$("#btnClose").addEventListener('click', UI.closeAllModals);
-    UI.$("#favClose").addEventListener('click', UI.closeAllModals);
-    UI.$("#histClose").addEventListener('click', UI.closeAllModals);
-    UI.$("#overlay").addEventListener('click', (e) => { if (e.target === UI.$("#overlay")) UI.closeAllModals(); });
-    UI.$("#favOverlay").addEventListener('click', (e) => { if (e.target === UI.$("#favOverlay")) UI.closeAllModals(); });
-    UI.$("#histOverlay").addEventListener('click', (e) => { if (e.target === UI.$("#histOverlay")) UI.closeAllModals(); });
-    
-    // Settings Modal
-    UI.$("#applySettings").addEventListener("click", applySettings);
-    UI.$("#btnClearFilters").addEventListener("click", UI.clearAllFiltersInModal);
-    UI.$("#langSelModal").addEventListener("change", (e)=>{
-        if(!state.staged) return;
-        state.staged.preview.lang = e.target.value;
-        state.lang = e.target.value; // Preview language change immediately
-        UI.renderText();
-        UI.renderOptionPillsFromStaged();
-    });
+    } catch (e) {
+        console.error(e);
+        UI.showToast('Failed to apply settings', 'error');
+    } finally {
+        UI.showModal(false);
+        state.staged = null;
+    }
+}
+
+// 關閉設定
+function closeModal() {
+    UI.showModal(false);
+    state.staged = null;
+}
+
+// 綁定事件
+function setupEventHandlers() {
+    // 卡片操作
+    UI.$('#btnLike').addEventListener('click', () => choose(true));
+    UI.$('#btnSkip').addEventListener('click', () => choose(false));
+    UI.$('#btnNext').addEventListener('click', nextCard);
+
+    // 開啟設定
+    UI.$('#btnSettings').addEventListener('click', openModal);
+    UI.$('#btnClose').addEventListener('click', closeModal);
+    UI.$('#btnApply').addEventListener('click', applySettings);
+
+    // 主題預覽
     UI.$("#themeSelect").addEventListener("change", (e)=>{
         if(!state.staged) return;
         state.staged.preview.theme = e.target.value;
         UI.applyTheme(e.target.value);
     });
+
+    // ✅ 類型選單：寫進 staged.filters.category
+    const catSel = UI.$('#categorySelect');
+    if (catSel) {
+      catSel.addEventListener('change', (e) => {
+        if (!state.staged) return;
+        if (!state.staged.filters) state.staged.filters = {};
+        state.staged.filters.category = e.target.value || 'restaurant';
+      });
+    }
+
+    // 以下舊有的評分/距離滑桿監聽可先保留（免費版不會用到評分）
     UI.$("#minRating").addEventListener("input", (e)=>{ 
         if(!state.staged) return; 
         state.staged.filters.minRating = +e.target.value; 
@@ -429,19 +297,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Jiasa] Initializing...');
   
   UI.applyTheme(state.currentTheme);
+
+  // 初始語言渲染
   UI.renderText();
+
+  // 初始距離/顯示
+  const distSlider = UI.$('#distance');
+  if (distSlider) {
+    distSlider.value = state.filters.distance || 500;
+    UI.$("#distanceShow").textContent = "≤ " + distSlider.value + "m";
+    UI.updateSliderBackground(distSlider);
+  }
+
   setupEventHandlers();
-  
-  const splashScreen = UI.$('#splashScreen');
-  const hasSeenSplash = sessionStorage.getItem('jiasa_seen_splash');
-  if (!hasSeenSplash) {
+
+  // Splash
+  const splashScreen = document.getElementById('splash');
+  if (splashScreen) {
     setTimeout(() => {
       splashScreen.classList.add('fade-out');
-      setTimeout(() => { splashScreen.style.display = 'none'; }, 500);
-      sessionStorage.setItem('jiasa_seen_splash', 'true');
-    }, 3000);
-  } else {
-    splashScreen.style.display = 'none';
+      setTimeout(() => splashScreen.remove(), 300);
+    }, 800);
   }
 
   analytics.track('app_open', navigator.userAgent);
@@ -455,3 +331,4 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(console.error);
   });
 }
+
