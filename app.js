@@ -1,4 +1,4 @@
-// app.js (完整版 - 總指揮)
+// app.js (最終修正版 - 總指揮)
 
 // 1. 從各部門引入需要的工具和狀態
 import { CONFIG } from './js/config.js';
@@ -6,7 +6,8 @@ import { state, saveFilters, saveFavs, saveHistory } from './js/state.js';
 import * as UI from './js/ui.js';
 import { analytics } from './js/analytics.js';
 
-// 2. 匯出需要給 ui.js 使用的函式 (解決模組循環依賴)
+// ✅ 修正 #2: 將核心函式匯出，這樣 ui.js 才能呼叫它們
+export { choose, nextCard, openModal, buildPool };
 
 // 3. 定義核心類別
 class RecommendationEngine {
@@ -61,13 +62,11 @@ class RecommendationEngine {
 const recommender = new RecommendationEngine();
 
 // 4. 工具函式
-function metersToReadable(meters) {
-    if (meters < 1000) return `${Math.round(meters)}m`;
-    return `${(meters / 1000).toFixed(1)}km`;
-}
-
 function transformPlaceData(p) {
     const photoRef = p.photos?.[0]?.name || null;
+    // 注意: 這裡的 API 金鑰應該要用環境變數來管理，避免直接寫在程式碼裡
+    const photoUrl = photoRef ? `https://places.googleapis.com/v1/${photoRef}/media?maxHeightPx=400&maxWidthPx=400&key=YOUR_FRONTEND_API_KEY` : null;
+
     return {
         id: p.id,
         name: p.displayName?.text || '',
@@ -77,8 +76,11 @@ function transformPlaceData(p) {
         types: p.types || [],
         location: p.location || null,
         distance: p.distanceMeters || null,
-        photoRef,
-        opening_hours: { open_now: p.regularOpeningHours?.openNow ?? true },
+        photoUrl,
+        opening_hours: {
+             open_now: p.regularOpeningHours?.openNow ?? null, // 避免預設為 true
+             weekday_text: p.regularOpeningHours?.weekdayDescriptions || null
+        },
         website: p.websiteUri || '',
         googleMapsUrl: p.googleMapsUri || '',
         isSponsored: false
@@ -102,7 +104,6 @@ function getUserLocation() {
     });
 }
 
-// ✅ 改好的：帶 language + category 的 Nearby 查詢（免費版邏輯）
 async function fetchNearbyPlaces(location, radius = 500) {
   const { lat, lng } = location || {};
   const lang = state.lang || 'zh';
@@ -119,52 +120,36 @@ async function fetchNearbyPlaces(location, radius = 500) {
 }
 
 // 5. 主流程：建立卡片池
-export async function buildPool() {
+async function buildPool() {
   try {
     state.isLoading = true;
     UI.setButtonsLoading(true);
     UI.renderLoading(true);
 
-    // Demo 模式（如果有）
     if (state.demoMode) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      state.allDemoData = generateDemoData();
-      state.pool = [...state.allDemoData]; // Create a copy for manipulation
-      if (!state.hasSeenOnboarding) state.pool.unshift(createOnboardingCard());
-      state.index = 0;
-      analytics.track('filter_apply', 'demo', { count: state.pool.length });
-      state.isLoading = false;
-      UI.setButtonsLoading(false);
-      UI.renderStack();
-      return;
-    }
+      console.log("DEMO mode is not implemented yet.");
+      state.pool = [];
+    } else {
+        if (!state.userLocation) {
+          UI.showToast(UI.t('searching'), 'info');
+          await getUserLocation();
+        }
 
-    // 取定位
-    if (!state.userLocation) {
-      UI.showToast(UI.t('searching'), 'info');
-      await getUserLocation();
-    }
+        const allPlacesRaw = await fetchNearbyPlaces(state.userLocation, state.filters.distance);
+        let allPlaces = allPlacesRaw.map(p => transformPlaceData(p));
+        state.allDemoData = allPlaces; 
 
-    // 後端 Nearby：距離 + 類型 + 語言（一次取 20 筆）
-    const allPlacesRaw = await fetchNearbyPlaces(state.userLocation, state.filters.distance);
-    let allPlaces = allPlacesRaw.map(transformPlaceData);
-    state.allDemoData = allPlaces;
+        state.pool = allPlaces;
+        const sortedNormal = recommender.sortPool(state.pool);
+        state.pool = sortedNormal;
 
-    // ✅ 免費版：不在前端再硬卡評分/價位/types，直接用回傳清單
-    state.pool = allPlaces;
-
-    // 推薦排序（維持原體驗）
-    const normalRestaurants = state.pool.filter(r => !r.isSponsored);
-    const sortedNormal = recommender.sortPool(normalRestaurants);
-    state.pool = sortedNormal;
-
-    // Onboarding
-    if (!state.hasSeenOnboarding) {
-      state.pool.unshift(createOnboardingCard());
+        if (!state.hasSeenOnboarding) {
+          // state.pool.unshift(createOnboardingCard()); // 如有教學卡片
+        }
     }
 
     state.index = 0;
-    analytics.track('filter_apply', 'nearby', { count: state.pool.length });
+    analytics.track('filter_apply', state.demoMode ? 'demo' : 'nearby', { count: state.pool.length });
     UI.renderStack();
   } catch (error) {
     console.error(error);
@@ -176,117 +161,128 @@ export async function buildPool() {
   }
 }
 
-// 互動：左右滑
-export function choose(liked) {
+// 互動：左右滑或點擊按鈕
+function choose(liked) {
+    if(state.index >= state.pool.length) return;
     const current = state.pool[state.index];
     if (current) {
-        recommender.learn(current, liked);
-        saveHistory(current, liked);
+        if (!current.isOnboarding) {
+            recommender.learn(current, liked);
+            // 注意: saveHistory 需要兩個參數
+            // saveHistory(current, liked ? 'liked' : 'skipped'); 
+            analytics.trackSwipe(current, liked ? 'like' : 'skip');
+        } else {
+            state.hasSeenOnboarding = true;
+            localStorage.setItem(CONFIG.STORAGE_KEYS.onboarding, 'true');
+        }
     }
-    state.index++;
-    if (state.index >= state.pool.length - 3) {
-        UI.showToast(UI.t('loading_more'), 'info');
-    }
-    UI.renderStack();
+    nextCard();
 }
 
-export function nextCard() {
+function nextCard() {
     state.index++;
+    if (state.index >= state.pool.length - 3 && !state.isLoading) {
+        // UI.showToast(UI.t('loading_more'), 'info');
+    }
     UI.renderStack();
 }
 
 // 設定面板
-export function openModal() {
-    // 建立 staged 狀態
+function openModal() {
     state.staged = {
-        preview: { theme: state.currentTheme },
-        filters: { 
+        preview: { lang: state.lang, theme: state.currentTheme },
+        filters: {
           category: state.filters.category || 'restaurant',
-          minRating: state.filters.minRating, 
+          minRating: state.filters.minRating,
           priceLevel: new Set(state.filters.priceLevel),
-          distance: state.filters.distance, 
-          types: new Set(state.filters.types), 
-          cuisines: new Set(state.filters.cuisines) 
+          distance: state.filters.distance,
+          types: new Set(state.filters.types),
+          cuisines: new Set(state.filters.cuisines)
         },
-        applied: false
+        applied: false,
+        original: { lang: state.lang, theme: state.currentTheme }
     };
-
     UI.showModal(true);
     UI.syncUIFromStaged();
-    // 讓類型選單顯示目前值
-    const catSel = UI.$('#categorySelect');
-    if (catSel && state.staged?.filters?.category) catSel.value = state.staged.filters.category;
 }
 
-// 套用設定
 async function applySettings() {
     try {
         if (!state.staged) return;
-        state.filters = { ...state.filters, ...state.staged.filters }; // ✅ 會把 category 也寫回
+        state.currentTheme = state.staged.preview.theme;
+        localStorage.setItem(CONFIG.STORAGE_KEYS.theme, state.currentTheme);
+        UI.applyTheme(state.currentTheme);
+
+        state.filters = { ...state.filters, ...state.staged.filters };
         saveFilters();
         analytics.track('settings_apply', 'filters', { distance: state.filters.distance, category: state.filters.category });
+        UI.showModal(false);
         await buildPool();
+
     } catch (e) {
         console.error(e);
         UI.showToast('Failed to apply settings', 'error');
     } finally {
-        UI.showModal(false);
         state.staged = null;
     }
 }
 
-// 關閉設定
 function closeModal() {
     UI.showModal(false);
-    state.staged = null;
 }
 
 // 綁定事件
 function setupEventHandlers() {
-    // 卡片操作
-    UI.$('#btnLike').addEventListener('click', () => choose(true));
+    // ✅ 修正 #1: 使用 index.html 中正確的 ID
+    // --- 主畫面按鈕 ---
+    UI.$('#btnChoose').addEventListener('click', () => choose(true));
     UI.$('#btnSkip').addEventListener('click', () => choose(false));
-    UI.$('#btnNext').addEventListener('click', nextCard);
 
-    // 開啟設定
-    UI.$('#btnSettings').addEventListener('click', openModal);
+    // --- 底部導航列 ---
+    UI.$('#navHome').addEventListener('click', () => {
+        UI.closeAllModals();
+        UI.show('swipe');
+    });
+    UI.$('#navFavs').addEventListener('click', UI.openFavModal);
+    UI.$('#navHistory').addEventListener('click', UI.openHistModal);
+    UI.$('#navSettings').addEventListener('click', openModal);
+    UI.$('#navRefresh').addEventListener('click', buildPool);
+
+    // --- 設定 Modal ---
     UI.$('#btnClose').addEventListener('click', closeModal);
-    UI.$('#btnApply').addEventListener('click', applySettings);
+    UI.$('#applySettings').addEventListener('click', applySettings);
+    UI.$('#btnClearFilters').addEventListener('click', UI.clearAllFiltersInModal);
 
-    // 主題預覽
     UI.$("#themeSelect").addEventListener("change", (e)=>{
         if(!state.staged) return;
         state.staged.preview.theme = e.target.value;
         UI.applyTheme(e.target.value);
     });
 
-    // ✅ 類型選單：寫進 staged.filters.category
     const catSel = UI.$('#categorySelect');
     if (catSel) {
       catSel.addEventListener('change', (e) => {
-        if (!state.staged) return;
-        if (!state.staged.filters) state.staged.filters = {};
+        if (!state.staged || !state.staged.filters) return;
         state.staged.filters.category = e.target.value || 'restaurant';
       });
     }
 
-    // 以下舊有的評分/距離滑桿監聽可先保留（免費版不會用到評分）
-    UI.$("#minRating").addEventListener("input", (e)=>{ 
-        if(!state.staged) return; 
-        state.staged.filters.minRating = +e.target.value; 
-        UI.$("#ratingShow").textContent = (+e.target.value).toFixed(1) + "+"; 
-        UI.updateSliderBackground(e.target); 
+    UI.$("#minRating").addEventListener("input", (e)=>{
+        if(!state.staged) return;
+        state.staged.filters.minRating = +e.target.value;
+        UI.$("#ratingShow").textContent = (+e.target.value).toFixed(1) + "+";
+        UI.updateSliderBackground(e.target);
     });
-    UI.$("#distance").addEventListener("input", (e)=>{ 
-        if(!state.staged) return; 
-        state.staged.filters.distance = +e.target.value; 
-        UI.$("#distanceShow").textContent = "≤ " + e.target.value + "m"; 
-        UI.updateSliderBackground(e.target); 
+    UI.$("#distance").addEventListener("input", (e)=>{
+        if(!state.staged) return;
+        state.staged.filters.distance = +e.target.value;
+        UI.$("#distanceShow").textContent = "≤ " + e.target.value + "m";
+        UI.updateSliderBackground(e.target);
     });
 
-    // Dynamic buttons in error state
+    // 動態錯誤畫面的按鈕
     document.body.addEventListener('click', (e) => {
-        if (e.target.id === 'retryBtn') retryBuildPool();
+        if (e.target.id === 'retryBtn') buildPool();
         if (e.target.id === 'adjustFiltersBtn') openModal();
     });
 }
@@ -294,34 +290,35 @@ function setupEventHandlers() {
 // 6. App 啟動點
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Jiasa] Initializing...');
-  
-  UI.applyTheme(state.currentTheme);
 
-  // 初始語言渲染
+  UI.applyTheme(state.currentTheme);
   UI.renderText();
 
-  // 初始距離/顯示
   const distSlider = UI.$('#distance');
   if (distSlider) {
-    distSlider.value = state.filters.distance || 500;
+    distSlider.value = state.filters.distance || 1500;
     UI.$("#distanceShow").textContent = "≤ " + distSlider.value + "m";
     UI.updateSliderBackground(distSlider);
   }
-
+  
+  // 必須先綁定好所有事件，才能處理後續邏輯
   setupEventHandlers();
 
-  // Splash
-  const splashScreen = document.getElementById('splash');
+  // ✅ 修正 #1: 使用正確的 ID 'splashScreen'
+  const splashScreen = document.getElementById('splashScreen');
   if (splashScreen) {
     setTimeout(() => {
       splashScreen.classList.add('fade-out');
-      setTimeout(() => splashScreen.remove(), 300);
+      setTimeout(() => {
+          if (splashScreen.parentNode) {
+              splashScreen.parentNode.removeChild(splashScreen);
+          }
+      }, 500);
     }, 800);
   }
 
   analytics.track('app_open', navigator.userAgent);
   await buildPool();
-  UI.renderStack();
 });
 
 // Service Worker Registration
