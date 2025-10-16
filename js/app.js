@@ -1,4 +1,4 @@
-// js/app.js
+// js/app.js (最終修正版)
 import { CONFIG } from './config.js';
 import { state, saveFilters } from './state.js';
 import * as UI from './ui.js';
@@ -6,9 +6,43 @@ import { analytics } from './analytics.js';
 
 export { choose, nextCard, openModal, buildPool };
 
+// ✅ 修正 #1: 恢復完整的 RecommendationEngine 類別
 class RecommendationEngine {
-    // ... (這部分程式碼沒有變動，保持原樣)
+    constructor() {
+        this.preferences = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.preferences) || "{}");
+    }
+    learn(restaurant, liked) {
+        if (!this.preferences.types) this.preferences.types = {};
+        if (!this.preferences.priceRange) this.preferences.priceRange = {};
+        const weight = liked ? 1 : -0.5;
+        restaurant.types.forEach(type => {
+            this.preferences.types[type] = (this.preferences.types[type] || 0) + weight;
+        });
+        const priceKey = `price_${restaurant.price}`;
+        this.preferences.priceRange[priceKey] = (this.preferences.priceRange[priceKey] || 0) + weight;
+        localStorage.setItem(CONFIG.STORAGE_KEYS.preferences, JSON.stringify(this.preferences));
+    }
+    score(restaurant) {
+        let score = 0;
+        if (this.preferences.types) {
+            restaurant.types.forEach(type => {
+                score += this.preferences.types[type] || 0;
+            });
+        }
+        if (this.preferences.priceRange) {
+            const priceKey = `price_${restaurant.price}`;
+            score += this.preferences.priceRange[priceKey] || 0;
+        }
+        const distanceScore = restaurant.distance ? 1 / (1 + restaurant.distance / 1000) : 0;
+        const ratingScore = restaurant.rating || 0;
+        score += 0.6 * distanceScore + 0.4 * ratingScore;
+        return score;
+    }
+    sortPool(pool) {
+        return pool.slice().sort((a, b) => this.score(b) - this.score(a));
+    }
 }
+
 const recommender = new RecommendationEngine();
 
 function transformPlaceData(p) {
@@ -39,14 +73,10 @@ function getUserLocation() {
         }
         navigator.geolocation.getCurrentPosition(
           position => {
-            state.userLocation = {
-               lat: position.coords.latitude,
-              lng: position.coords.longitude
-            };
+            state.userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
             resolve(state.userLocation);
           },
           error => {
-            // ✅ 更新: 提供更清楚的錯誤訊息
             if (error.code === error.PERMISSION_DENIED) {
                 reject(new Error('您已拒絕提供定位權限。請至瀏覽器設定開啟權限後再重試。'));
             } else {
@@ -80,7 +110,6 @@ async function buildPool() {
 
     const placesRaw = await fetchNearbyPlaces(state.userLocation, state.filters.distance, state.filters.category);
     state.pool = placesRaw.map(transformPlaceData);
-    state.allDemoData = state.pool; 
     
     state.pool = recommender.sortPool(state.pool);
     state.index = 0;
@@ -112,7 +141,6 @@ function nextCard() {
 }
 
 function openModal() {
-    // ✅ 更新: state.staged 只儲存需要的篩選條件
     state.staged = {
         preview: { lang: state.lang, theme: state.currentTheme },
         filters: {
@@ -160,7 +188,7 @@ function setupEventHandlers() {
     UI.$("#langSelModal").addEventListener("change", (e)=>{
         if(!state.staged) return;
         state.staged.preview.lang = e.target.value;
-        state.lang = e.target.value; // 立即更新 state 以便 UI 文字即時變化
+        state.lang = e.target.value;
         UI.syncUIFromStaged();
     });
 
@@ -203,3 +231,4 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(console.error);
   });
 }
+
