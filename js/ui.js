@@ -1,8 +1,8 @@
 // js/ui.js
 import { I18N, CONFIG } from './config.js';
-import { state, saveFavs, saveHistory } from './state.js';
+import { state } from './state.js';
 import { analytics } from './analytics.js';
-import { choose, nextCard, openModal as openSettingsModal } from './app.js';
+import { choose, nextCard, undoSwipe } from './app.js';
 
 export const $ = s => document.querySelector(s);
 export function t(k) { return I18N[state.lang][k] || k; }
@@ -29,23 +29,38 @@ export function showToast(message, type = 'info') {
   }, 3000);
 }
 
-export function showSkeletonLoader() {
-  $("#stack").innerHTML = `<div class="skeleton-card"><div class="skeleton-box skeleton-photo"></div><div class="skeleton-box skeleton-title"></div><div class="skeleton-box skeleton-meta"></div><div class="skeleton-chips"><div class="skeleton-box skeleton-chip"></div><div class="skeleton-box skeleton-chip"></div></div></div>`;
+export function renderLoading(on) {
+  if (on) {
+    $("#stack").innerHTML = `<div class="skeleton-card"><div class="skeleton-box skeleton-photo"></div><div class="skeleton-box skeleton-title"></div><div class="skeleton-box skeleton-meta"></div></div>`;
+  }
 }
 
-export function showErrorState(message) {
-  $("#stack").innerHTML = `<div class="empty-with-action"><div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div><button class="btn primary" id="retryBtn">${t('retry')}</button><button class="btn" id="adjustFiltersBtn">${t('adjustFilters')}</button></div>`;
+export function renderError(message) {
+  $("#stack").innerHTML = `<div class="empty-with-action">
+    <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div>
+    <button class="btn primary" id="retryBtn">${t('retry')}</button>
+    <button class="btn" id="adjustFiltersBtn">${t('adjustFilters')}</button>
+  </div>`;
+}
+
+function renderEmptyState() {
+   $("#stack").innerHTML = `<div class="empty-with-action">
+    <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${t('noMatches')}</div>
+    <button class="btn primary" id="retryBtn">${t('retry')}</button>
+    <button class="btn" id="adjustFiltersBtn">${t('adjustFilters')}</button>
+  </div>`;
 }
 
 export function setButtonsLoading(loading) {
-  $('#applySettings').disabled = loading;
-  $('#btnSkip').disabled = loading;
-  $('#btnChoose').disabled = loading;
+  if ($('#applySettings')) $('#applySettings').disabled = loading;
+  if ($('#btnSkip')) $('#btnSkip').disabled = loading;
+  if ($('#btnChoose')) $('#btnChoose').disabled = loading;
+  if ($('#btnUndo')) $('#btnUndo').disabled = loading;
 }
 
-// ✅ 更新: 根據新的篩選器項目來渲染文字
 export function renderText() {
   const set = (sel, text) => { const el = $(sel); if (el) el.textContent = text; };
+  set("#btnUndo", t("undo"));
   set("#btnSkip", t("skip"));
   set("#btnChoose", t("choose"));
   set("#hintKeys", t("hintKeys"));
@@ -56,9 +71,9 @@ export function renderText() {
   set("#btnClearFilters", t("clearFilters"));
   set("#favTitle", t("favorites"));
   set("#histTitle", t("history"));
-  set("#offlineBadge", t("offline"));
   set("#lblDistance", t("lblDistance"));
   set("#lblCategory", t("lblCategory"));
+  set("#lblFilters", t("lblFilters"));
   
   document.querySelectorAll('.nav-label').forEach((el, i) => {
     const keys = ["navHome", "navFavorites", "navRefresh", "navHistory", "navSettings"];
@@ -66,38 +81,113 @@ export function renderText() {
   });
 }
 
-function attachDrag(card){
-    // ... (這部分程式碼沒有變動，保持原樣)
-    const flyOut = (liked)=>{
-        const toX = liked ? 480 : -480;
-        card.style.transition = REDUCED ? "transform .18s ease-out" : "transform .18s cubic-bezier(.2,.8,.2,1)";
-        card.style.transform = `translate(${toX}px,0) rotate(${liked?15:-15}deg)`;
-        if(navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
-        setTimeout(()=> choose(liked), 160); // ✅ 已修正為 choose
-    };
-    // ... (其餘拖曳邏輯不變)
+function attachDrag(card) {
+  let startX = 0, startY = 0, dx = 0, dy = 0;
+  const ROTATION_FACTOR = 0.1;
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    startX = e.clientX;
+    startY = e.clientY;
+    card.style.transition = 'none';
+    card.setPointerCapture(e.pointerId);
+    card.addEventListener('pointermove', onPointerMove);
+    card.addEventListener('pointerup', onPointerUp);
+    card.addEventListener('pointercancel', onPointerUp);
+  }
+
+  function onPointerMove(e) {
+    e.preventDefault();
+    dx = e.clientX - startX;
+    dy = e.clientY - startY;
+    const rotation = dx * ROTATION_FACTOR;
+    card.style.transform = `translate(${dx}px, ${dy}px) rotate(${rotation}deg)`;
+    const opacity = Math.abs(dx) / (card.offsetWidth / 2);
+    card.querySelector('.like').style.opacity = dx > 0 ? opacity : 0;
+    card.querySelector('.nope').style.opacity = dx < 0 ? opacity : 0;
+  }
+
+  function onPointerUp(e) {
+    card.releasePointerCapture(e.pointerId);
+    card.removeEventListener('pointermove', onPointerMove);
+    card.removeEventListener('pointerup', onPointerUp);
+    card.removeEventListener('pointercancel', onPointerUp);
+    
+    if (Math.abs(dx) > card.offsetWidth * 0.4) {
+      flyOut(dx > 0);
+    } else {
+      card.style.transition = 'all .3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+      card.style.transform = '';
+      card.querySelector('.like').style.opacity = 0;
+      card.querySelector('.nope').style.opacity = 0;
+    }
+  }
+
+  const flyOut = (liked) => {
+    const endX = liked ? card.offsetWidth * 1.5 : -card.offsetWidth * 1.5;
+    const endRotation = (endX / (card.offsetWidth / 2)) * 15;
+    card.style.transition = 'all .4s ease-out';
+    card.style.transform = `translate(${endX}px, ${dy}px) rotate(${endRotation}deg)`;
+    card.style.opacity = 0;
+    if(navigator.vibrate) try { navigator.vibrate(12); } catch(e){}
+    setTimeout(() => choose(liked), 160);
+  };
+  
+  card.addEventListener('pointerdown', onPointerDown);
 }
 
 export function renderStack(){
-  const stack=$("#stack"); 
+  const stack = $("#stack"); 
   if (!stack) return;
-  stack.innerHTML="";
-  const topN = state.pool.slice(state.index, state.index+3);
   
-  if(!topN.length){ 
-    if(!state.isLoading) stack.innerHTML = `<div class="empty">${t("noMatches")}</div>`; 
+  if ($('#btnUndo')) $('#btnUndo').disabled = !state.undoSlot;
+
+  if (state.isLoading) {
+    renderLoading(true);
     return;
   }
   
-  // ... (卡片渲染邏輯不變)
+  if (!state.pool.length || state.index >= state.pool.length) {
+    renderEmptyState();
+    return;
+  }
+
+  stack.innerHTML="";
+  const topN = state.pool.slice(state.index, state.index + 3).reverse();
+
+  topN.forEach((r, i) => {
+      const card = document.createElement('div');
+      card.className = 'swipe-card';
+      card.style.zIndex = 100 - i;
+      
+      if (i > 0) {
+        card.style.transform = `translateY(${-i * 8}px) scale(${1 - i * 0.04})`;
+      }
+
+      card.innerHTML = `
+          <div class="badge like">${t('like')}</div>
+          <div class="badge nope">${t('nope')}</div>
+          <div class="card-content">
+            <div class="title">${r.name}</div>
+            <div class="meta">${r.rating || ''} ★ · ${r.distanceMeters ? (r.distanceMeters/1000).toFixed(1)+'km' : ''}</div>
+          </div>
+          ${r.photoUrl ? `<img src="${r.photoUrl}" class="card-photo" alt="${r.name}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="photo-placeholder" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 16.5l-4-4a2 2 0 00-2.8 0l-4.3 4.3a2 2 0 01-2.8 0l-1.4-1.4a2 2 0 00-2.8 0L3 21.2"/></svg></div>` 
+          : `<div class="photo-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 16.5l-4-4a2 2 0 00-2.8 0l-4.3 4.3a2 2 0 01-2.8 0l-1.4-1.4a2 2 0 00-2.8 0L3 21.2"/></svg></div>`}
+      `;
+      stack.appendChild(card);
+      if (i === topN.length - 1) {
+          attachDrag(card);
+      }
+  });
 }
+
 
 export function show(screen){ 
     $("#swipe").style.display = screen === 'swipe' ? 'flex' : 'none';
-    if (screen === 'swipe' && state.pool.length > 0) renderStack();
+    if (screen === 'swipe') renderStack();
 }
 
-// ===== MODALS =====
 export function closeAllModals() {
   document.querySelectorAll('.modal.active, .overlay.active').forEach(el => el.classList.remove('active'));
   updateNavActive('navHome');
@@ -115,7 +205,6 @@ export function openFavModal(){
   $("#favOverlay").classList.add("active"); 
   $("#favModal").classList.add("active");
   updateNavActive('navFavs');
-  // renderFavs();
   analytics.track('modal_open', 'favorites');
 }
 
@@ -124,11 +213,9 @@ export function openHistModal(){
   $("#histOverlay").classList.add("active"); 
   $("#histModal").classList.add("active");
   updateNavActive('navHistory');
-  // renderHistory();
   analytics.track('modal_open', 'history');
 }
 
-// ✅ 新增: 動態渲染膠囊按鈕
 function renderPillGroup(containerId, options, selectedValue, onSelect) {
   const container = $(`#${containerId}`);
   if (!container) return;
@@ -138,12 +225,11 @@ function renderPillGroup(containerId, options, selectedValue, onSelect) {
     btn.className = "pill";
     btn.dataset.value = option.value;
     btn.textContent = state.lang === 'zh' ? (option.label_zh || option.label) : (option.label_en || option.label);
-    if (option.value === selectedValue) {
+    if (String(option.value) === String(selectedValue)) {
       btn.classList.add("active");
     }
     btn.onclick = () => {
       onSelect(option.value);
-      // 更新外觀
       container.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
     };
@@ -151,20 +237,16 @@ function renderPillGroup(containerId, options, selectedValue, onSelect) {
   });
 }
 
-// ✅ 更新: 同步 UI 與新的篩選器結構
 export function syncUIFromStaged(){
   if (!state.staged) return;
   
-  // 語言和主題
   $("#langSelModal").value = state.staged.preview.lang;
   $("#themeSelect").value = state.staged.preview.theme;
 
-  // 渲染距離膠囊按鈕
   renderPillGroup('distancePills', CONFIG.FILTER_OPTIONS.distance, state.staged.filters.distance, (value) => {
     state.staged.filters.distance = value;
   });
 
-  // 渲染類型膠囊按鈕
   renderPillGroup('categoryPills', CONFIG.FILTER_OPTIONS.category, state.staged.filters.category, (value) => {
     state.staged.filters.category = value;
   });
@@ -176,7 +258,7 @@ export function clearAllFiltersInModal() {
   if (!state.staged) return;
   state.staged.filters.distance = CONFIG.DEFAULT_FILTERS.distance;
   state.staged.filters.category = CONFIG.DEFAULT_FILTERS.category;
-  syncUIFromStaged(); // 重新渲染 UI
+  syncUIFromStaged();
   showToast(t('filtersCleared'), 'success');
   analytics.track('filters', 'clear_all');
 }
@@ -192,9 +274,3 @@ export function showModal(show) {
   }
 }
 
-export function renderLoading(on) {
-  if (on) showSkeletonLoader();
-}
-export function renderError(msg) {
-  showErrorState(msg || t('searchError'));
-}
