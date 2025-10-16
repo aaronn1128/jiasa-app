@@ -298,7 +298,6 @@ main {
   text-transform:uppercase; letter-spacing:.08em;
 }
 
-/* === 新增: 膠囊按鈕組樣式 === */
 .pill-group {
   display: flex;
   flex-wrap: wrap;
@@ -327,7 +326,6 @@ main {
   border-color: transparent;
   font-weight: 700;
 }
-/* === 膠囊按鈕樣式結束 === */
 
 .select {
   width:100%; background: var(--select-bg); color: var(--select-text); 
@@ -462,6 +460,11 @@ body.theme-sakura {
 .nav-item svg {
   width: 24px;
   height: 24px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .nav-label {
   font-size: 10px;
@@ -473,3 +476,4 @@ body.theme-sakura {
 .nav-item.active {
   color: var(--primary);
 }
+
