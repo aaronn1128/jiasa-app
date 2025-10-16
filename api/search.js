@@ -1,21 +1,24 @@
-// api/search.js (最終修正版)
+// api/search.js
 module.exports = async function (request, response) {
   const { lat, lng, radius, lang, category } = request.query;
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  if (!apiKey) return response.status(500).json({ error: "Missing API key" });
+  if (!apiKey) {
+    return response.status(500).json({ error: "Missing API key" });
+  }
 
   const langMap = { zh: 'zh-TW', 'zh-TW': 'zh-TW', en: 'en', 'en-US': 'en' };
   const languageCode = langMap[lang] || 'zh-TW';
 
   let includedTypes = ['restaurant'];
-  if (category === 'cafe_dessert') includedTypes = ['cafe', 'bakery'];
-  else if (category === 'bar') includedTypes = ['bar'];
+  if (category === 'cafe_dessert') {
+    includedTypes = ['cafe', 'bakery'];
+  } else if (category === 'bar') {
+    includedTypes = ['bar'];
+  }
 
   const payload = {
     includedTypes,
     languageCode,
-    // ✅ 修正: 移除 rankPreference: 'DISTANCE'，讓 API 可以正確使用 radius
-    // rankPreference: 'DISTANCE', // 當使用 radius 時，不能指定此項
     regionCode: "TW",
     locationRestriction: {
       circle: {
@@ -31,7 +34,6 @@ module.exports = async function (request, response) {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        // 為了拿到距離，我們需要額外請求 places.distanceMeters
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.location,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri,places.distanceMeters"
       },
       body: JSON.stringify(payload)
@@ -43,7 +45,6 @@ module.exports = async function (request, response) {
     }
     const data = await r.json();
     
-    // 手動排序，因為現在 API 是以關聯性排序
     if (data.places && data.places.length > 0) {
       data.places.sort((a, b) => (a.distanceMeters || 9999) - (b.distanceMeters || 9999));
     }
