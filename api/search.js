@@ -1,4 +1,4 @@
-// api/search.js（Nearby：距離 + 類型 + 語言）
+// api/search.js (最終修正版)
 module.exports = async function (request, response) {
   const { lat, lng, radius, lang, category } = request.query;
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -7,15 +7,15 @@ module.exports = async function (request, response) {
   const langMap = { zh: 'zh-TW', 'zh-TW': 'zh-TW', en: 'en', 'en-US': 'en' };
   const languageCode = langMap[lang] || 'zh-TW';
 
-  // 類型：餐廳 / 下午茶&輕食(cafe|bakery) / 酒吧
   let includedTypes = ['restaurant'];
-  if (category === 'cafe_dessert') includedTypes = ['cafe','bakery'];
+  if (category === 'cafe_dessert') includedTypes = ['cafe', 'bakery'];
   else if (category === 'bar') includedTypes = ['bar'];
 
   const payload = {
     includedTypes,
-    maxResultCount: 20,
     languageCode,
+    // ✅ 修正: 移除 rankPreference: 'DISTANCE'，讓 API 可以正確使用 radius
+    // rankPreference: 'DISTANCE', // 當使用 radius 時，不能指定此項
     regionCode: "TW",
     locationRestriction: {
       circle: {
@@ -31,20 +31,8 @@ module.exports = async function (request, response) {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": [
-          "places.id",
-          "places.displayName",
-          "places.formattedAddress",
-          "places.rating",
-          "places.priceLevel",
-          "places.types",
-          "places.location",
-          "places.photos.name",
-          "places.regularOpeningHours.openNow",
-          "places.regularOpeningHours.weekdayDescriptions",
-          "places.websiteUri",
-          "places.googleMapsUri"
-        ].join(",")
+        // 為了拿到距離，我們需要額外請求 places.distanceMeters
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.location,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri,places.distanceMeters"
       },
       body: JSON.stringify(payload)
     });
@@ -54,6 +42,12 @@ module.exports = async function (request, response) {
       return response.status(r.status).json({ error: text || "Google API error" });
     }
     const data = await r.json();
+    
+    // 手動排序，因為現在 API 是以關聯性排序
+    if (data.places && data.places.length > 0) {
+      data.places.sort((a, b) => (a.distanceMeters || 9999) - (b.distanceMeters || 9999));
+    }
+
     response.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=600');
     return response.status(200).json(data);
   } catch (err) {
