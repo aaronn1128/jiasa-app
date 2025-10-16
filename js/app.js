@@ -1,10 +1,11 @@
-// app.js (最終修正版 - 總指揮)
+// app.js (最終路徑修正版 - 總指揮)
 
 // 1. 從各部門引入需要的工具和狀態
-import { CONFIG } from './js/config.js';
-import { state, saveFilters, saveFavs, saveHistory } from './js/state.js';
-import * as UI from './js/ui.js';
-import { analytics } from './js/analytics.js';
+// ✅ 修正 #3: 移除多餘的 '/js' 路徑，因為 app.js 已經在 js 資料夾內
+import { CONFIG } from './config.js';
+import { state, saveFilters, saveFavs, saveHistory } from './state.js';
+import * as UI from './ui.js';
+import { analytics } from './analytics.js';
 
 // ✅ 修正 #2: 將核心函式匯出，這樣 ui.js 才能呼叫它們
 export { choose, nextCard, openModal, buildPool };
@@ -64,8 +65,7 @@ const recommender = new RecommendationEngine();
 // 4. 工具函式
 function transformPlaceData(p) {
     const photoRef = p.photos?.[0]?.name || null;
-    // 注意: 這裡的 API 金鑰應該要用環境變數來管理，避免直接寫在程式碼裡
-    const photoUrl = photoRef ? `https://places.googleapis.com/v1/${photoRef}/media?maxHeightPx=400&maxWidthPx=400&key=YOUR_FRONTEND_API_KEY` : null;
+    const photoUrl = photoRef ? `https://places.googleapis.com/v1/${photoRef}/media?maxHeightPx=400&maxWidthPx=400&key=AIzaSyDex4jcGsgso6jHfCdKD3pcD3PnU4cKjCY` : null;
 
     return {
         id: p.id,
@@ -78,7 +78,7 @@ function transformPlaceData(p) {
         distance: p.distanceMeters || null,
         photoUrl,
         opening_hours: {
-             open_now: p.regularOpeningHours?.openNow ?? null, // 避免預設為 true
+             open_now: p.regularOpeningHours?.openNow ?? null,
              weekday_text: p.regularOpeningHours?.weekdayDescriptions || null
         },
         website: p.websiteUri || '',
@@ -144,7 +144,7 @@ async function buildPool() {
         state.pool = sortedNormal;
 
         if (!state.hasSeenOnboarding) {
-          // state.pool.unshift(createOnboardingCard()); // 如有教學卡片
+          // state.pool.unshift(createOnboardingCard());
         }
     }
 
@@ -168,8 +168,6 @@ function choose(liked) {
     if (current) {
         if (!current.isOnboarding) {
             recommender.learn(current, liked);
-            // 注意: saveHistory 需要兩個參數
-            // saveHistory(current, liked ? 'liked' : 'skipped'); 
             analytics.trackSwipe(current, liked ? 'like' : 'skip');
         } else {
             state.hasSeenOnboarding = true;
@@ -301,10 +299,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     UI.updateSliderBackground(distSlider);
   }
   
-  // 必須先綁定好所有事件，才能處理後續邏輯
   setupEventHandlers();
 
-  // ✅ 修正 #1: 使用正確的 ID 'splashScreen'
   const splashScreen = document.getElementById('splashScreen');
   if (splashScreen) {
     setTimeout(() => {
