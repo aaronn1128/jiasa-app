@@ -1,4 +1,4 @@
-// js/app.js
+// js/app.js (最終 API 路徑修正版)
 import { CONFIG } from './config.js';
 import { state, saveFilters, saveHistory } from './state.js';
 import * as UI from './ui.js';
@@ -82,6 +82,7 @@ function getUserLocation() {
 
 async function fetchNearbyPlaces(location, radius, category) {
   const { lat, lng } = location;
+  // ✅ 修正: 在參數之間加上 "&"
   const apiUrl = `/api/search?lat=${lat}&lng=${lng}&radius=${radius}&category=${category}&lang=${state.lang}`;
   const response = await fetch(apiUrl);
   if (!response.ok) {
