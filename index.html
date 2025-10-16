@@ -9,9 +9,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png"/>
   <title>Jiasa</title>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDex4jcGsgso6jHfCdKD3pcD3PnU4cKjCY&libraries=places&language=zh-TW&v=beta"></script>
-
   <link rel="stylesheet" href="style.css">
-
 </head>
 <body>
   <div class="splash-screen" id="splashScreen">
@@ -42,7 +40,6 @@
       <div class="card" id="resultCard">
         <img alt="photo" class="hero" id="hero" style="display:none;"/>
         <div id="resultBody"></div>
-  
         <div class="divider"></div>
         <div class="kv" id="gEnrich"></div>
         <div class="hours-badge" id="hoursBadge"></div>
@@ -73,37 +70,23 @@
 
     <nav class="bottom-nav">
       <button class="nav-item active" id="navHome">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <path d="M9 22V12h6v10"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
         <span class="nav-label">首頁</span>
       </button>
       <button class="nav-item" id="navFavs">
-         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-        </svg>
+         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         <span class="nav-label">收藏</span>
       </button>
       <button class="nav-item" id="navRefresh">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-           <path d="M23 4v6h-6M1 20v-6h6"/>
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         <span class="nav-label">刷新</span>
       </button>
       <button class="nav-item" id="navHistory">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M12 7v5l3 2"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
         <span class="nav-label">歷史</span>
       </button>
       <button class="nav-item" id="navSettings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.77 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.51.39 1.05.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55-1.63.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/>
-          <circle cx="12" cy="12" r="3.2"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.77 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.51.39 1.05.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55-1.63.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3.2"/></svg>
         <span class="nav-label">設定</span>
       </button>
     </nav>
@@ -123,34 +106,22 @@
           <div class="label" style="margin:0;">篩選條件</div>
           <button class="clear-filters" id="btnClearFilters">清除全部</button>
         </div>
-        <div>
-           <div class="field-group" id="grpRating">
-            <div class="label" id="lblMinRating">最低評分</div>
-            <div class="rating-display"><span>⭐</span><span class="rating-value" id="ratingShow">3.0+</span></div>
-            <input id="minRating" type="range" min="0" max="5" step="0.5" value="3"/>
-            <div class="hint" id="hintRating" style="display:none;">只顯示評分高於此值的餐廳。</div>
+
+        <div class="field-group">
+          <div class="label" id="lblDistance">搜尋距離</div>
+          <div class="pill-group" id="distancePills">
+            <!-- JS 會動態生成按鈕 -->
           </div>
-          <div class="field-group" id="grpPrice">
-           <div class="label" id="lblPrice">價格範圍</div>
-            <div class="row" id="priceRow"></div>
-            <div class="hint" id="hintPrice" style="display:none;">可選擇價格範圍</div>
-          </div>
-          <div class="field-group" id="grpDistance">
-            <div class="label" id="lblDistance">搜尋距離(公尺)</div>
-            <div class="row"><span class="pill" id="distanceShow">≤ 1500m</span></div>
-            <input id="distance" type="range" min="500" max="5000" step="250" value="1500"/>
-            <div class="hint" id="hintDistance" style="display:none;">需允許定位權限。</div>
+        </div>
+
+        <div class="field-group">
+          <div class="label" id="lblCategory">類型</div>
+          <div class="pill-group" id="categoryPills">
+            <!-- JS 會動態生成按鈕 -->
           </div>
         </div>
       </div>
-<div class="section">
-  <div class="label" id="lblCategory">類型</div>
-  <select class="select" id="categorySelect">
-    <option value="restaurant" data-zh="餐廳">Restaurant</option>
-    <option value="cafe_dessert" data-zh="下午茶＆輕食">Afternoon Tea & Light Meal</option>
-    <option value="bar" data-zh="酒吧">Bar</option>
-  </select>
-</div>
+      
       <div class="section">
         <div class="label" id="lblLang">語言</div>
         <select class="select" id="langSelModal">
