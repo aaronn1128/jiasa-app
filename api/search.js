@@ -1,9 +1,9 @@
-// api/search.js (修正版)
+// api/search.js (完整修正版 - 請完整複製替換)
 module.exports = async function (request, response) {
   const { lat, lng, radius, lang, category } = request.query;
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
-  // ========== CORS 設定 ==========
+  // CORS 設定
   const allowedOrigins = [
     'https://jiasa-app.vercel.app',
     'http://localhost:3000',
@@ -22,7 +22,7 @@ module.exports = async function (request, response) {
     return response.status(200).end();
   }
 
-  // ========== 參數驗證 ==========
+  // 參數驗證
   if (!lat || !lng || !radius) {
     return response.status(400).json({ 
       error: "Missing required parameters",
@@ -46,7 +46,7 @@ module.exports = async function (request, response) {
     });
   }
 
-  // ========== API Key 檢查 ==========
+  // API Key 檢查
   if (!apiKey) {
     console.error('[Search API] Missing GOOGLE_PLACES_API_KEY');
     return response.status(500).json({ 
@@ -54,7 +54,7 @@ module.exports = async function (request, response) {
     });
   }
 
-  // ========== 語言映射 ==========
+  // 語言映射
   const langMap = { 
     zh: 'zh-TW', 
     'zh-TW': 'zh-TW', 
@@ -64,7 +64,7 @@ module.exports = async function (request, response) {
   };
   const languageCode = langMap[lang] || 'zh-TW';
 
-  // ========== 類別映射 ==========
+  // 類別映射
   let includedTypes = ['restaurant'];
   if (category === 'cafe_dessert') {
     includedTypes = ['cafe', 'bakery'];
@@ -72,7 +72,7 @@ module.exports = async function (request, response) {
     includedTypes = ['bar', 'night_club'];
   }
 
-  // ========== 建立請求 Payload ==========
+  // 建立請求 Payload
   const payload = {
     includedTypes,
     languageCode,
@@ -90,7 +90,7 @@ module.exports = async function (request, response) {
   };
 
   try {
-    // ========== 呼叫 Google Places API ==========
+    // 呼叫 Google Places API
     const apiResponse = await fetch(
       "https://places.googleapis.com/v1/places:searchNearby", 
       {
@@ -104,7 +104,7 @@ module.exports = async function (request, response) {
       }
     );
 
-    // ========== 處理 API 錯誤 ==========
+    // 處理 API 錯誤
     if (!apiResponse.ok) {
       const errorText = await apiResponse.text();
       console.error('[Search API] Google API Error:', {
@@ -131,16 +131,15 @@ module.exports = async function (request, response) {
       });
     }
 
-    // ========== 處理成功響應 ==========
+    // 處理成功響應
     const data = await apiResponse.json();
     
-    // ✅ 計算距離並排序
+    // 計算距離並排序
     if (data.places && data.places.length > 0) {
       data.places.forEach(place => {
         if (place.location) {
           const placeLat = place.location.latitude;
           const placeLng = place.location.longitude;
-          // 手動計算距離
           place.distanceMeters = calculateDistance(
             latitude, 
             longitude, 
@@ -150,19 +149,17 @@ module.exports = async function (request, response) {
         }
       });
 
-      // 按距離排序
       data.places.sort((a, b) => 
         (a.distanceMeters || 9999) - (b.distanceMeters || 9999)
       );
     }
 
-    // ========== 設定快取 ==========
+    // 設定快取
     response.setHeader(
       'Cache-Control',
       'public, s-maxage=300, stale-while-revalidate=600'
     );
 
-    // ========== 記錄成功請求 ==========
     console.log('[Search API] Success:', {
       results: data.places?.length || 0,
       category,
@@ -173,7 +170,6 @@ module.exports = async function (request, response) {
     return response.status(200).json(data);
 
   } catch (err) {
-    // ========== 處理未預期錯誤 ==========
     console.error('[Search API] Unexpected Error:', err);
     
     return response.status(500).json({ 
@@ -183,19 +179,19 @@ module.exports = async function (request, response) {
   }
 };
 
-// ========== 輔助函數: 計算兩點間距離 (Haversine formula) ==========
+// 計算兩點間距離 (Haversine formula)
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // 地球半徑（公尺）
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const R = 6371e3;
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+  const deltaLambda = (lon2 - lon1) * Math.PI / 180;
 
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
   
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return Math.round(R * c); // 返回公尺
+  return Math.round(R * c);
 }
