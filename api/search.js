@@ -34,7 +34,7 @@ module.exports = async function (request, response) {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.location,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri,places.distanceMeters"
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.location,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri"
       },
       body: JSON.stringify(payload)
     });
@@ -45,7 +45,24 @@ module.exports = async function (request, response) {
     }
     const data = await r.json();
     
+    // 手動計算距離
     if (data.places && data.places.length > 0) {
+      const userLat = parseFloat(lat);
+      const userLng = parseFloat(lng);
+      
+      data.places = data.places.map(place => {
+        if (place.location) {
+          const distance = calculateDistance(
+            userLat, 
+            userLng, 
+            place.location.latitude, 
+            place.location.longitude
+          );
+          return { ...place, distanceMeters: Math.round(distance) };
+        }
+        return place;
+      });
+      
       data.places.sort((a, b) => (a.distanceMeters || 9999) - (b.distanceMeters || 9999));
     }
 
@@ -57,3 +74,18 @@ module.exports = async function (request, response) {
   }
 };
 
+// Haversine 公式計算兩點間距離（米）
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // 地球半徑（米）
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+}
