@@ -98,7 +98,6 @@ module.exports = async function (request, response) {
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
-          // ✅ 修正：移除 places.distanceMeters
           "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.location,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri"
         },
         body: JSON.stringify(payload)
