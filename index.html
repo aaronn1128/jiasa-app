@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- 啟動畫面 -->
   <div class="splash-screen" id="splashScreen">
     <div class="splash-logo-container">
       <div class="splash-icon-wrapper">
@@ -22,118 +23,54 @@
     </div>
   </div>
 
-  <div class="offline-badge" id="offlineBadge">離線模式</div>
+  <!-- App 主體 -->
   <div class="phone">
     <header>
       <h1><img src="assets/Jiasa_headerlogowordmark.png" alt="Jiasa"/></h1>
     </header>
+    
+    <!-- 卡片滑動主畫面 -->
     <main id="swipe">
       <div class="stack" id="stack"></div>
       <div class="controls">
-        <button class="btn secondary" id="btnSkip">略過</button>
-        <button class="btn primary" id="btnChoose">選這家</button>
+        <button class="btn" id="btnUndo" disabled>↩︎ <span data-i18n="undo">撤回</span></button>
+        <button class="btn secondary" id="btnSkip" data-i18n="skip">略過</button>
+        <button class="btn primary" id="btnChoose" data-i18n="choose">選這家</button>
       </div>
-      <div class="hint" id="hintKeys">提示:可以左右滑動卡片,或用 ← → 鍵操作。</div>
+      <div class="hint" id="hintKeys" data-i18n="hintKeys">提示：可以左右滑動卡片</div>
     </main>
-
+    
+    <!-- 底部導航列 -->
     <nav class="bottom-nav">
-      <button class="nav-item active" id="navHome">
-        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
-        <span class="nav-label">首頁</span>
-      </button>
-      <button class="nav-item" id="navFavs">
-         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        <span class="nav-label">收藏</span>
-      </button>
-      <button class="nav-item" id="navRefresh">
-        <svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-        <span class="nav-label">刷新</span>
-      </button>
-      <button class="nav-item" id="navHistory">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        <span class="nav-label">歷史</span>
-      </button>
-      <button class="nav-item" id="navSettings">
-        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.77 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.51.39 1.05.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3.2"/></svg>
-        <span class="nav-label">設定</span>
-      </button>
+      <button class="nav-item active" id="navHome"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="nav-label" data-i18n="navHome">首頁</span></button>
+      <button class="nav-item" id="navFavs"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="nav-label" data-i18n="navFavorites">收藏</span></button>
+      <button class="nav-item" id="navRefresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span class="nav-label" data-i18n="navRefresh">刷新</span></button>
+      <button class="nav-item" id="navHistory"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="nav-label" data-i18n="navHistory">歷史</span></button>
+      <button class="nav-item" id="navSettings"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.77 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.51.39 1.05.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55-1.63.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3.2"/></svg><span class="nav-label" data-i18n="navSettings">設定</span></button>
     </nav>
   </div>
 
+  <!-- 設定 Modal -->
   <div class="overlay" id="overlay"></div>
   <div aria-modal="true" class="modal" id="modal" role="dialog">
-    <div class="modal-header">
-      <div class="label" id="mTitle">設定</div>
-       <button aria-label="Close" class="iconbtn" id="btnClose">
-        <svg viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
-      </button>
-    </div>
+    <div class="modal-header"><div class="label" data-i18n="settings">設定</div><button aria-label="Close" class="iconbtn" id="btnClose"><svg viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg></button></div>
     <div class="modal-body">
-      <div class="section" id="filtersBlock">
-        <div class="filter-actions">
-          <div class="label" style="margin:0;">篩選條件</div>
-          <button class="clear-filters" id="btnClearFilters">清除全部</button>
-        </div>
-
-        <div class="field-group">
-          <div class="label" id="lblDistance">搜尋距離</div>
-          <div class="pill-group" id="distancePills"></div>
-        </div>
-
-        <div class="field-group">
-          <div class="label" id="lblCategory">類型</div>
-          <div class="pill-group" id="categoryPills"></div>
-        </div>
-      </div>
-      
       <div class="section">
-        <div class="label" id="lblLang">語言</div>
-        <select class="select" id="langSelModal">
-          <option value="zh">繁體中文</option>
-          <option value="en">English</option>
-        </select>
+        <div class="filter-actions"><div class="label" style="margin:0;" data-i18n="lblFilters">篩選條件</div><button class="clear-filters" id="btnClearFilters" data-i18n="clearFilters">清除全部</button></div>
+        <div class="field-group"><div class="label" data-i18n="lblDistance">搜尋距離</div><div class="pill-group" id="distancePills"></div></div>
+        <div class="field-group"><div class="label" data-i18n="lblCategory">類型</div><div class="pill-group" id="categoryPills"></div></div>
       </div>
-      <div class="section">
-         <div class="label" id="lblTheme">主題</div>
-        <select class="select" id="themeSelect">
-          <option value="classic">Classic</option>
-          <option value="mocha">Mocha</option>
-          <option value="olive">Olive</option>
-          <option value="sakura">Sakura</option>
-        </select>
-      </div>
-      <div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;">
-        <button class="btn primary" id="applySettings" style="width:auto;"><span id="applyText">套用</span></button>
-      </div>
+      <div class="section"><div class="label" data-i18n="language">語言</div><select class="select" id="langSelModal"><option value="zh">繁體中文</option><option value="en">English</option></select></div>
+      <div class="section"><div class="label" data-i18n="theme">主題</div><select class="select" id="themeSelect"><option value="classic">Classic</option><option value="mocha">Mocha</option><option value="olive">Olive</option><option value="sakura">Sakura</option></select></div>
+      <div style="display:flex; margin-top:12px; justify-content:flex-end;"><button class="btn primary" id="applySettings" style="width:auto;"><span data-i18n="apply">套用</span></button></div>
     </div>
   </div>
 
-  <div class="overlay" id="favOverlay"></div>
-  <div aria-modal="true" class="modal" id="favModal" role="dialog">
-    <div class="modal-header">
-      <div class="label" id="favTitle">收藏清單</div>
-      <button aria-label="Close" class="iconbtn" id="favClose">
-        <svg viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div id="favList"></div>
-     </div>
-  </div>
+  <!-- 收藏與歷史 Modal (結構暫留) -->
+  <div class="overlay" id="favOverlay"></div><div aria-modal="true" class="modal" id="favModal" role="dialog"></div>
+  <div class="overlay" id="histOverlay"></div><div aria-modal="true" class="modal" id="histModal" role="dialog"></div>
 
-  <div class="overlay" id="histOverlay"></div>
-  <div aria-modal="true" class="modal" id="histModal" role="dialog">
-    <div class="modal-header">
-      <div class="label" id="histTitle">歷史紀錄</div>
-      <button aria-label="Close" class="iconbtn" id="histClose">
-        <svg viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div id="histList"></div>
-    </div>
-  </div>
-
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>
+

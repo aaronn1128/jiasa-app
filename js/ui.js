@@ -1,8 +1,8 @@
 // js/ui.js
 import { I18N, CONFIG } from './config.js';
-import { state, saveFavs, saveHistory } from './state.js';
+import { state } from './state.js';
 import { analytics } from './analytics.js';
-import { choose, nextCard, openModal as openSettingsModal } from './app.js';
+import { choose, nextCard, undoSwipe } from './app.js';
 
 export const $ = s => document.querySelector(s);
 export function t(k) { return I18N[state.lang][k] || k; }
@@ -29,25 +29,38 @@ export function showToast(message, type = 'info') {
   }, 3000);
 }
 
-export function showSkeletonLoader() {
-  $("#stack").innerHTML = `<div class="skeleton-card"><div class="skeleton-box skeleton-photo"></div><div class="skeleton-box skeleton-title"></div><div class="skeleton-box skeleton-meta"></div><div class="skeleton-chips"><div class="skeleton-box skeleton-chip"></div><div class="skeleton-box skeleton-chip"></div></div></div>`;
+export function renderLoading(on) {
+  if (on) {
+    $("#stack").innerHTML = `<div class="skeleton-card"><div class="skeleton-box skeleton-photo"></div><div class="skeleton-box skeleton-title"></div><div class="skeleton-box skeleton-meta"></div></div>`;
+  }
 }
 
-export function showErrorState(message) {
-  $("#stack").innerHTML = `<div class="empty-with-action"><div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div><button class="btn primary" id="retryBtn">${t('retry')}</button><button class="btn" id="adjustFiltersBtn">${t('adjustFilters')}</button></div>`;
+export function renderError(message) {
+  $("#stack").innerHTML = `<div class="empty-with-action">
+    <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${message}</div>
+    <button class="btn primary" id="retryBtn">${t('retry')}</button>
+    <button class="btn" id="adjustFiltersBtn">${t('adjustFilters')}</button>
+  </div>`;
+}
+
+function renderEmptyState() {
+   $("#stack").innerHTML = `<div class="empty-with-action">
+    <div style="color:var(--muted); font-size:16px; margin-bottom:8px;">${t('noMatches')}</div>
+    <button class="btn primary" id="retryBtn">${t('retry')}</button>
+    <button class="btn" id="adjustFiltersBtn">${t('adjustFilters')}</button>
+  </div>`;
 }
 
 export function setButtonsLoading(loading) {
-  const applyBtn = $('#applySettings');
-  const skipBtn = $('#btnSkip');
-  const chooseBtn = $('#btnChoose');
-  if (applyBtn) applyBtn.disabled = loading;
-  if (skipBtn) skipBtn.disabled = loading;
-  if (chooseBtn) chooseBtn.disabled = loading;
+  if ($('#applySettings')) $('#applySettings').disabled = loading;
+  if ($('#btnSkip')) $('#btnSkip').disabled = loading;
+  if ($('#btnChoose')) $('#btnChoose').disabled = loading;
+  if ($('#btnUndo')) $('#btnUndo').disabled = loading;
 }
 
 export function renderText() {
   const set = (sel, text) => { const el = $(sel); if (el) el.textContent = text; };
+  set("#btnUndo", t("undo"));
   set("#btnSkip", t("skip"));
   set("#btnChoose", t("choose"));
   set("#hintKeys", t("hintKeys"));
@@ -58,9 +71,9 @@ export function renderText() {
   set("#btnClearFilters", t("clearFilters"));
   set("#favTitle", t("favorites"));
   set("#histTitle", t("history"));
-  set("#offlineBadge", t("offline"));
   set("#lblDistance", t("lblDistance"));
   set("#lblCategory", t("lblCategory"));
+  set("#lblFilters", t("lblFilters"));
   
   document.querySelectorAll('.nav-label').forEach((el, i) => {
     const keys = ["navHome", "navFavorites", "navRefresh", "navHistory", "navSettings"];
@@ -69,128 +82,110 @@ export function renderText() {
 }
 
 function attachDrag(card) {
-  let startX = 0, currentX = 0, isDragging = false;
-  
+  let startX = 0, startY = 0, dx = 0, dy = 0;
+  const ROTATION_FACTOR = 0.1;
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    startX = e.clientX;
+    startY = e.clientY;
+    card.style.transition = 'none';
+    card.setPointerCapture(e.pointerId);
+    card.addEventListener('pointermove', onPointerMove);
+    card.addEventListener('pointerup', onPointerUp);
+    card.addEventListener('pointercancel', onPointerUp);
+  }
+
+  function onPointerMove(e) {
+    e.preventDefault();
+    dx = e.clientX - startX;
+    dy = e.clientY - startY;
+    const rotation = dx * ROTATION_FACTOR;
+    card.style.transform = `translate(${dx}px, ${dy}px) rotate(${rotation}deg)`;
+    const opacity = Math.abs(dx) / (card.offsetWidth / 2);
+    card.querySelector('.like').style.opacity = dx > 0 ? opacity : 0;
+    card.querySelector('.nope').style.opacity = dx < 0 ? opacity : 0;
+  }
+
+  function onPointerUp(e) {
+    card.releasePointerCapture(e.pointerId);
+    card.removeEventListener('pointermove', onPointerMove);
+    card.removeEventListener('pointerup', onPointerUp);
+    card.removeEventListener('pointercancel', onPointerUp);
+    
+    if (Math.abs(dx) > card.offsetWidth * 0.4) {
+      flyOut(dx > 0);
+    } else {
+      card.style.transition = 'all .3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+      card.style.transform = '';
+      card.querySelector('.like').style.opacity = 0;
+      card.querySelector('.nope').style.opacity = 0;
+    }
+  }
+
   const flyOut = (liked) => {
-    const toX = liked ? 480 : -480;
-    card.style.transition = REDUCED ? "transform .18s ease-out" : "transform .18s cubic-bezier(.2,.8,.2,1)";
-    card.style.transform = `translate(${toX}px,0) rotate(${liked ? 15 : -15}deg)`;
-    if (navigator.vibrate) try { navigator.vibrate(12); } catch(e) {}
+    const endX = liked ? card.offsetWidth * 1.5 : -card.offsetWidth * 1.5;
+    const endRotation = (endX / (card.offsetWidth / 2)) * 15;
+    card.style.transition = 'all .4s ease-out';
+    card.style.transform = `translate(${endX}px, ${dy}px) rotate(${endRotation}deg)`;
+    card.style.opacity = 0;
+    if(navigator.vibrate) try { navigator.vibrate(12); } catch(e){}
     setTimeout(() => choose(liked), 160);
   };
-
-  const onStart = (e) => {
-    isDragging = true;
-    startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
-    card.style.transition = 'none';
-  };
-
-  const onMove = (e) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    currentX = (e.type.includes('mouse') ? e.clientX : e.touches[0].clientX) - startX;
-    const rotation = currentX * 0.03;
-    card.style.transform = `translate(${currentX}px, 0) rotate(${rotation}deg)`;
-    
-    const badge = card.querySelector('.badge');
-    if (badge) {
-      if (currentX > 50) {
-        badge.classList.add('like');
-        badge.classList.remove('nope');
-        badge.style.opacity = '1';
-      } else if (currentX < -50) {
-        badge.classList.add('nope');
-        badge.classList.remove('like');
-        badge.style.opacity = '1';
-      } else {
-        badge.style.opacity = '0';
-      }
-    }
-  };
-
-  const onEnd = () => {
-    if (!isDragging) return;
-    isDragging = false;
-    
-    if (Math.abs(currentX) > 100) {
-      flyOut(currentX > 0);
-    } else {
-      card.style.transition = 'transform .25s ease';
-      card.style.transform = '';
-      const badge = card.querySelector('.badge');
-      if (badge) badge.style.opacity = '0';
-    }
-    currentX = 0;
-  };
-
-  card.addEventListener('mousedown', onStart);
-  card.addEventListener('touchstart', onStart, { passive: false });
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('touchmove', onMove, { passive: false });
-  document.addEventListener('mouseup', onEnd);
-  document.addEventListener('touchend', onEnd);
+  
+  card.addEventListener('pointerdown', onPointerDown);
 }
 
-export function renderStack() {
+export function renderStack(){
   const stack = $("#stack"); 
   if (!stack) return;
-  stack.innerHTML = "";
-  const topN = state.pool.slice(state.index, state.index + 3);
   
-  if (!topN.length) { 
-    if (!state.isLoading) stack.innerHTML = `<div class="empty">${t("noMatches")}</div>`; 
+  if ($('#btnUndo')) $('#btnUndo').disabled = !state.undoSlot;
+
+  if (state.isLoading) {
+    renderLoading(true);
     return;
   }
   
-  topN.forEach((place, idx) => {
-    const card = document.createElement('div');
-    card.className = 'swipe-card';
-    card.style.zIndex = 100 - idx;
-    if (idx > 0) {
-      card.style.transform = `scale(${1 - idx * 0.05}) translateY(${idx * 8}px)`;
-      card.style.opacity = 1 - idx * 0.3;
-    }
+  if (!state.pool.length || state.index >= state.pool.length) {
+    renderEmptyState();
+    return;
+  }
 
-    const photoHTML = place.photoUrl 
-      ? `<img src="${place.photoUrl}" class="card-photo" alt="${place.name}" />`
-      : `<div class="photo-placeholder"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>`;
+  stack.innerHTML="";
+  const topN = state.pool.slice(state.index, state.index + 3).reverse();
 
-    // ✅ 使用 SVG 圖示
-    const ratingHTML = place.rating 
-      ? `<span class="meta-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="#ffd700"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> ${place.rating}</span>` 
-      : '';
-    
-    const priceHTML = place.price 
-      ? `<span class="meta-icon">${'<svg viewBox="0 0 24 24" width="14" height="14" fill="#4ade80"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9h-4.5a2.5 2.5 0 0 0 0 5H13a2.5 2.5 0 0 1 0 5H9" stroke="#000" stroke-width="2" fill="none"/></svg>'.repeat(place.price)}</span>` 
-      : '';
-    
-    const distanceHTML = place.distance 
-      ? `<span class="meta-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="#ef4444"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3" fill="#fff"/></svg> ${(place.distance / 1000).toFixed(1)}km</span>` 
-      : '';
+  topN.forEach((r, i) => {
+      const card = document.createElement('div');
+      card.className = 'swipe-card';
+      card.style.zIndex = 100 - i;
+      
+      if (i > 0) {
+        card.style.transform = `translateY(${-i * 8}px) scale(${1 - i * 0.04})`;
+      }
 
-    card.innerHTML = `
-      <div class="badge like">LIKE</div>
-      <div class="badge nope">NOPE</div>
-      ${photoHTML}
-      <div class="title">${place.name}</div>
-      <div class="meta">
-        ${ratingHTML}
-        ${priceHTML}
-        ${distanceHTML}
-      </div>
-      <div class="row">
-        ${place.types.slice(0, 3).map(t => `<span class="chip">${t}</span>`).join('')}
-      </div>
-    `;
-
-    if (idx === 0) attachDrag(card);
-    stack.appendChild(card);
+      card.innerHTML = `
+          <div class="badge like">${t('like')}</div>
+          <div class="badge nope">${t('nope')}</div>
+          <div class="card-content">
+            <div class="title">${r.name}</div>
+            <div class="meta">${r.rating || ''} ★ · ${r.distanceMeters ? (r.distanceMeters/1000).toFixed(1)+'km' : ''}</div>
+          </div>
+          ${r.photoUrl ? `<img src="${r.photoUrl}" class="card-photo" alt="${r.name}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="photo-placeholder" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 16.5l-4-4a2 2 0 00-2.8 0l-4.3 4.3a2 2 0 01-2.8 0l-1.4-1.4a2 2 0 00-2.8 0L3 21.2"/></svg></div>` 
+          : `<div class="photo-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 16.5l-4-4a2 2 0 00-2.8 0l-4.3 4.3a2 2 0 01-2.8 0l-1.4-1.4a2 2 0 00-2.8 0L3 21.2"/></svg></div>`}
+      `;
+      stack.appendChild(card);
+      if (i === topN.length - 1) {
+          attachDrag(card);
+      }
   });
 }
 
-export function show(screen) { 
-  $("#swipe").style.display = screen === 'swipe' ? 'flex' : 'none';
-  if (screen === 'swipe' && state.pool.length > 0) renderStack();
+
+export function show(screen){ 
+    $("#swipe").style.display = screen === 'swipe' ? 'flex' : 'none';
+    if (screen === 'swipe') renderStack();
 }
 
 export function closeAllModals() {
@@ -201,11 +196,11 @@ export function closeAllModals() {
 export function updateNavActive(activeId) {
   ['navHome', 'navFavs', 'navHistory', 'navSettings'].forEach(id => {
     const el = $("#" + id);
-    if (el) el.classList.toggle('active', id === activeId);
+    if(el) el.classList.toggle('active', id === activeId);
   });
 }
 
-export function openFavModal() {
+export function openFavModal(){
   closeAllModals();
   $("#favOverlay").classList.add("active"); 
   $("#favModal").classList.add("active");
@@ -213,7 +208,7 @@ export function openFavModal() {
   analytics.track('modal_open', 'favorites');
 }
 
-export function openHistModal() {
+export function openHistModal(){
   closeAllModals();
   $("#histOverlay").classList.add("active"); 
   $("#histModal").classList.add("active");
@@ -230,7 +225,7 @@ function renderPillGroup(containerId, options, selectedValue, onSelect) {
     btn.className = "pill";
     btn.dataset.value = option.value;
     btn.textContent = state.lang === 'zh' ? (option.label_zh || option.label) : (option.label_en || option.label);
-    if (option.value === selectedValue) {
+    if (String(option.value) === String(selectedValue)) {
       btn.classList.add("active");
     }
     btn.onclick = () => {
@@ -242,7 +237,7 @@ function renderPillGroup(containerId, options, selectedValue, onSelect) {
   });
 }
 
-export function syncUIFromStaged() {
+export function syncUIFromStaged(){
   if (!state.staged) return;
   
   $("#langSelModal").value = state.staged.preview.lang;
@@ -279,10 +274,3 @@ export function showModal(show) {
   }
 }
 
-export function renderLoading(on) {
-  if (on) showSkeletonLoader();
-}
-
-export function renderError(msg) {
-  showErrorState(msg || t('searchError'));
-}

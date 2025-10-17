@@ -1,63 +1,68 @@
 // sw.js
-const CACHE = 'jiasa-v2';
-// 核心檔案：App 的骨架
-const CORE = ['./', './index.html', './manifest.json'];
-// 可選檔案：App 的外觀、功能和圖示
-const OPTIONAL = [
+const CACHE = 'jiasa-v4'; // ✅ 更新快取版本以強制更新
+
+const CORE_FILES = [
+  './',
+  './index.html',
+  './manifest.json',
   './style.css',
-  './js/app.js',
-  './js/ui.js',
+  './js/app.js', // ✅ 修正路徑
   './js/config.js',
   './js/state.js',
+  './js/ui.js',
   './js/analytics.js',
-  './assets/icon-192.png',
-  './assets/icon-512.png',
   './assets/bowl.png',
   './assets/arrow.png',
   './assets/jiasa-text.png',
-  './assets/Jiasa_headerlogowordmark.png'
+  './assets/Jiasa_headerlogowordmark.png',
+  './assets/icon-192.png',
+  './assets/icon-512.png'
 ];
 
 self.addEventListener('install', (e) => {
-  console.log('[SW] 安裝中...');
   e.waitUntil((async () => {
-    const c = await caches.open(CACHE);
-    // 必要檔（缺一不可）
-    await c.addAll(CORE);
-    // 可選檔（有就快取，沒有就略過）
-    for (const url of OPTIONAL) {
-      try { 
-        await c.add(url); 
-        console.log('[SW] 快取:', url);
-      } catch (err) { 
-        console.warn('[SW] 無法快取:', url);
-      }
-    }
+    const cache = await caches.open(CACHE);
+    console.log('[SW] Caching core app shell');
+    await cache.addAll(CORE_FILES);
   })());
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  console.log('[SW] 啟動中...');
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => {
-        console.log('[SW] 刪除舊快取:', k);
-        return caches.delete(k);
-      }))
-    )
+    caches.keys().then(keys => {
+      return Promise.all(keys.map(key => {
+        if (key !== CACHE) {
+          console.log('[SW] Removing old cache', key);
+          return caches.delete(key);
+        }
+      }));
+    })
   );
-  self.clients.claim();
+  return self.clients.claim();
 });
 
 self.addEventListener('fetch', (e) => {
-  // 不快取 API 請求
+  // 忽略後端 API 請求，永遠從網路獲取
   if (e.request.url.includes('/api/')) {
     return;
   }
-  
-  e.respondWith(
-    fetch(e.request)
-      .catch(() => caches.match(e.request))
-  );
+
+  e.respondWith((async () => {
+    const cachedResponse = await caches.match(e.request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    try {
+      const response = await fetch(e.request);
+      // 對於非核心檔案的請求，可以選擇性地快取
+      // 但此處我們採用簡單的 network-first 策略，專注於快取核心檔案
+      return response;
+    } catch (error) {
+      // 離線時，如果快取中也沒有，則無法回應
+      console.log('[SW] Fetch failed; returning offline page instead.', error);
+    }
+  })());
 });
+
