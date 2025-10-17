@@ -5,7 +5,7 @@ module.exports = async function (request, response) {
 
   // ========== CORS 設定 ==========
   const allowedOrigins = [
-    'https://jiasa-app.vercel.app',   // ← 你的域名
+    'https://jiasa-app.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173'
   ];
@@ -34,7 +34,6 @@ module.exports = async function (request, response) {
   const longitude = parseFloat(lng);
   const radiusMeters = parseInt(radius, 10);
 
-  // 驗證座標範圍
   if (isNaN(latitude) || latitude < -90 || latitude > 90) {
     return response.status(400).json({ error: "Invalid latitude" });
   }
@@ -99,7 +98,7 @@ module.exports = async function (request, response) {
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
-          // ✅ 修正: 移除 places.distanceMeters（此欄位不存在）
+          // ✅ 修正：移除 places.distanceMeters
           "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.location,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri"
         },
         body: JSON.stringify(payload)
