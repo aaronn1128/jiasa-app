@@ -512,3 +512,134 @@ body.theme-sakura {
   --primary-2:#e66a94; 
 }
 
+/* ========== Toast 通知樣式 ========== */
+.toast {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(43, 25, 18, 0.95);
+  backdrop-filter: blur(12px);
+  color: var(--fg);
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--divider);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+  font-size: 14px;
+  font-weight: 500;
+  max-width: 90vw;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.toast-success {
+  border-color: var(--like);
+  background: rgba(110, 231, 168, 0.15);
+}
+
+.toast-error {
+  border-color: var(--nope);
+  background: rgba(252, 165, 165, 0.15);
+}
+
+.toast-info {
+  border-color: var(--primary);
+  background: rgba(255, 138, 61, 0.15);
+}
+
+/* ========== 無障礙改進 ========== */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ========== Focus 可見性 ========== */
+button:focus-visible,
+.btn:focus-visible,
+.pill:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ========== 減少動畫（尊重用戶偏好）========== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========== 高對比模式支援 ========== */
+@media (prefers-contrast: high) {
+  :root {
+    --divider: rgba(255, 255, 255, 0.3);
+  }
+  
+  .btn,
+  .pill,
+  .select {
+    border-width: 2px;
+  }
+}
+
+/* ========== 暗色模式額外調整 ========== */
+@media (prefers-color-scheme: dark) {
+  body:not([class*="theme-"]) {
+    --divider: rgba(255, 255, 255, 0.15);
+  }
+}
+
+/* ========== 觸控裝置優化 ========== */
+@media (hover: none) and (pointer: coarse) {
+  .btn,
+  .pill,
+  .nav-item {
+    min-height: 44px;
+  }
+  
+  .btn:active,
+  .pill:active {
+    transform: scale(0.96);
+  }
+}
+
+/* ========== 小螢幕優化 ========== */
+@media (max-width: 360px) {
+  .phone {
+    width: 100vw;
+  }
+  
+  .title {
+    font-size: 18px;
+  }
+  
+  .meta {
+    font-size: 12px;
+  }
+  
+  .btn {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+/* ========== 大螢幕優化 ========== */
+@media (min-width: 768px) {
+  .phone {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+}
