@@ -1,13 +1,13 @@
-// api/search.js (完整加強版)
+// api/search.js (修正版)
 module.exports = async function (request, response) {
   const { lat, lng, radius, lang, category } = request.query;
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
   // ========== CORS 設定 ==========
   const allowedOrigins = [
-    'https://jiasa-app.vercel.app',  // ← 改成你的域名
+    'https://jiasa-app.vercel.app',   // ← 你的域名
     'http://localhost:3000',
-    'http://localhost:5173'           // Vite 預設 port
+    'http://localhost:5173'
   ];
 
   const origin = request.headers.origin;
@@ -78,7 +78,7 @@ module.exports = async function (request, response) {
     includedTypes,
     languageCode,
     regionCode: "TW",
-    maxResultCount: 20, // 限制結果數量
+    maxResultCount: 20,
     locationRestriction: {
       circle: {
         center: { 
@@ -99,6 +99,7 @@ module.exports = async function (request, response) {
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
+          // ✅ 修正: 移除 places.distanceMeters（此欄位不存在）
           "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.location,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri"
         },
         body: JSON.stringify(payload)
@@ -114,7 +115,6 @@ module.exports = async function (request, response) {
         body: errorText
       });
 
-      // 根據狀態碼返回適當錯誤
       if (apiResponse.status === 429) {
         return response.status(429).json({ 
           error: "API rate limit exceeded. Please try again later." 
@@ -136,12 +136,13 @@ module.exports = async function (request, response) {
     // ========== 處理成功響應 ==========
     const data = await apiResponse.json();
     
-    // 計算距離並排序
+    // ✅ 計算距離並排序
     if (data.places && data.places.length > 0) {
       data.places.forEach(place => {
         if (place.location) {
           const placeLat = place.location.latitude;
           const placeLng = place.location.longitude;
+          // 手動計算距離
           place.distanceMeters = calculateDistance(
             latitude, 
             longitude, 
@@ -158,7 +159,6 @@ module.exports = async function (request, response) {
     }
 
     // ========== 設定快取 ==========
-    // 快取 5 分鐘，允許 10 分鐘的 stale-while-revalidate
     response.setHeader(
       'Cache-Control',
       'public, s-maxage=300, stale-while-revalidate=600'
