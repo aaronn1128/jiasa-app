@@ -1,4 +1,4 @@
-// js/app.js (最終 API 路徑修正版)
+// js/app.js (安全版本 - 已移除 API Key)
 import { CONFIG } from './config.js';
 import { state, saveFilters, saveHistory } from './state.js';
 import * as UI from './ui.js';
@@ -35,7 +35,9 @@ const recommender = new RecommendationEngine();
 
 function transformPlaceData(p) {
     const photoRef = p.photos?.[0]?.name || null;
-    const photoUrl = photoRef ? `https://places.googleapis.com/v1/${photoRef}/media?maxHeightPx=400&maxWidthPx=400&key=AIzaSyDex4jcGsgso6jHfCdKD3pcD3PnU4cKjCY` : null;
+    // ✅ 修正: 使用後端代理 API
+    const photoUrl = photoRef ? `/api/photo?photoName=${encodeURIComponent(photoRef)}` : null;
+    
     return {
         id: p.id,
         name: p.displayName?.text || '',
@@ -60,8 +62,14 @@ function getUserLocation() {
         if (!navigator.geolocation) {
             return reject(new Error('您的瀏覽器不支援定位功能。'));
         }
+        
+        const timeoutId = setTimeout(() => {
+            reject(new Error('定位請求超時，請檢查網路連線。'));
+        }, CONFIG.API_TIMEOUT);
+
         navigator.geolocation.getCurrentPosition(
           position => {
+            clearTimeout(timeoutId);
             state.userLocation = {
                lat: position.coords.latitude,
               lng: position.coords.longitude
@@ -69,28 +77,60 @@ function getUserLocation() {
             resolve(state.userLocation);
           },
           error => {
-            if (error.code === error.PERMISSION_DENIED) {
-                reject(new Error('您已拒絕提供定位權限。請至瀏覽器設定開啟權限後再重試。'));
-            } else {
-                reject(new Error('無法取得您的位置，請檢查網路連線或稍後再試。'));
+            clearTimeout(timeoutId);
+            let errorMessage = '無法取得您的位置。';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = '您已拒絕提供定位權限。請至瀏覽器設定開啟權限後再重試。';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = '無法取得位置資訊，請確認 GPS 已開啟。';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = '定位請求超時，請檢查網路連線後再試。';
+                    break;
             }
+            
+            analytics.track('error', 'geolocation', { code: error.code, message: error.message });
+            reject(new Error(errorMessage));
           },
-          { enableHighAccuracy: true, timeout: 8000 }
+          { 
+            enableHighAccuracy: true, 
+            timeout: 8000,
+            maximumAge: 30000 // 允許使用 30 秒內的快取位置
+          }
         );
     });
 }
 
 async function fetchNearbyPlaces(location, radius, category) {
   const { lat, lng } = location;
-  // ✅ 修正: 在參數之間加上 "&"
   const apiUrl = `/api/search?lat=${lat}&lng=${lng}&radius=${radius}&category=${category}&lang=${state.lang}`;
-  const response = await fetch(apiUrl);
-  if (!response.ok) {
-      console.error('API Response Error:', await response.text());
-      throw new Error(`API 請求失敗: ${response.status}`);
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
+  
+  try {
+    const response = await fetch(apiUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Response Error:', errorText);
+      throw new Error(`API 請求失敗 (${response.status})`);
+    }
+    
+    const data = await response.json();
+    return data.places || [];
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error.name === 'AbortError') {
+      throw new Error('請求超時，請檢查網路連線。');
+    }
+    throw error;
   }
-  const data = await response.json();
-  return data.places || [];
 }
 
 async function buildPool() {
@@ -104,17 +144,50 @@ async function buildPool() {
         await getUserLocation();
     }
 
-    const placesRaw = await fetchNearbyPlaces(state.userLocation, state.filters.distance, state.filters.category);
-    state.pool = placesRaw.map(transformPlaceData);
+    const placesRaw = await fetchNearbyPlaces(
+      state.userLocation, 
+      state.filters.distance, 
+      state.filters.category
+    );
     
+    if (!placesRaw || placesRaw.length === 0) {
+      state.pool = [];
+      state.index = 0;
+      analytics.track('search_result', 'empty', { ...state.filters });
+      UI.renderStack();
+      return;
+    }
+    
+    state.pool = placesRaw.map(transformPlaceData);
     state.pool = recommender.sortPool(state.pool);
     state.index = 0;
     state.undoSlot = null;
-    analytics.track('filter_apply', 'nearby', { count: state.pool.length, ...state.filters });
+    
+    analytics.track('search_result', 'success', { 
+      count: state.pool.length, 
+      ...state.filters 
+    });
+    
     UI.renderStack();
   } catch (error) {
     console.error("Build Pool Error:", error);
-    UI.renderError(error.message || '搜尋失敗，請稍後再試');
+    
+    // 根據錯誤類型提供更準確的訊息
+    let userMessage = '搜尋失敗，請稍後再試';
+    if (error.message.includes('定位') || error.message.includes('位置')) {
+      userMessage = error.message;
+    } else if (error.message.includes('超時')) {
+      userMessage = '網路連線不穩定，請檢查後重試';
+    } else if (error.message.includes('API')) {
+      userMessage = '服務暫時無法使用，請稍後再試';
+    }
+    
+    analytics.track('error', 'build_pool', { 
+      error: error.message,
+      filters: state.filters
+    });
+    
+    UI.renderError(userMessage);
   } finally {
     state.isLoading = false;
     UI.setButtonsLoading(false);
@@ -203,6 +276,7 @@ function setupEventHandlers() {
         if(!state.staged) return;
         state.staged.preview.lang = e.target.value;
         state.lang = e.target.value;
+        localStorage.setItem(CONFIG.STORAGE_KEYS.lang, state.lang);
         UI.renderText();
         UI.syncUIFromStaged();
     });
@@ -217,33 +291,59 @@ function setupEventHandlers() {
         if (e.target.id === 'retryBtn') buildPool();
         if (e.target.id === 'adjustFiltersBtn') openModal();
     });
+    
+    // 鍵盤快捷鍵
+    document.addEventListener('keydown', (e) => {
+        if (state.isLoading) return;
+        
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            choose(false);
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            choose(true);
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            undoSwipe();
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Jiasa] Initializing...');
+  
   UI.applyTheme(state.currentTheme);
   UI.renderText();
   setupEventHandlers();
 
   const splashScreen = document.getElementById('splashScreen');
-  if (splashScreen) {
-    setTimeout(() => {
-      splashScreen.classList.add('fade-out');
+  
+  try {
+    analytics.track('app_open', navigator.userAgent);
+    await buildPool();
+  } catch (error) {
+    console.error('Initialization error:', error);
+    UI.renderError('應用程式初始化失敗，請重新整理頁面。');
+  } finally {
+    // 移除啟動畫面
+    if (splashScreen) {
       setTimeout(() => {
-          if (splashScreen.parentNode) {
-              splashScreen.parentNode.removeChild(splashScreen);
-          }
-      }, 500);
-    }, 800);
+        splashScreen.classList.add('fade-out');
+        setTimeout(() => {
+            if (splashScreen.parentNode) {
+                splashScreen.parentNode.removeChild(splashScreen);
+            }
+        }, 500);
+      }, 800);
+    }
   }
-
-  analytics.track('app_open', navigator.userAgent);
-  await buildPool();
 });
 
+// Service Worker 註冊
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(console.error);
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('[SW] Registered:', reg.scope))
+      .catch(err => console.error('[SW] Registration failed:', err));
   });
 }
-

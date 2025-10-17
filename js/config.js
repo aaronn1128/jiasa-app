@@ -57,7 +57,9 @@ export const I18N = {
     lblDistance: "搜尋距離", 
     lblCategory: "類型",
     lblFilters: "篩選條件",
-    undo: "撤回"
+    undo: "撤回",
+    like: "喜歡",
+    nope: "略過"
   },
   en: { 
     settings:"Settings", 
@@ -84,7 +86,8 @@ export const I18N = {
     lblDistance: "Search Radius", 
     lblCategory: "Category",
     lblFilters: "Filters",
-    undo: "Undo"
+    undo: "Undo",
+    like: "Like",
+    nope: "Nope"
   }
 };
-
