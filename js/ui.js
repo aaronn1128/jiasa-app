@@ -1,4 +1,4 @@
-// js/ui.js
+// js/ui.js - 完整修復版
 import { I18N, CONFIG, ICONS } from './config.js';
 import { state, saveFavs, saveHistory, saveOnboarding } from './state.js';
 import { analytics } from './analytics.js';
@@ -100,7 +100,6 @@ export function renderText() {
   });
 }
 
-// ✅ 新增：創建 Onboarding 卡片
 function createOnboardingCard() {
   const onboard = t('onboard');
   const card = document.createElement('div');
@@ -128,7 +127,6 @@ function createOnboardingCard() {
   return card;
 }
 
-// ✅ 重寫：完整的卡片渲染
 export function renderStack(){
   const stack = $("#stack"); 
   if (!stack) return;
@@ -147,7 +145,6 @@ export function renderStack(){
 
   stack.innerHTML = "";
   
-  // 如果是第一張卡片且用戶沒看過 onboarding，顯示引導卡片
   if (state.index === 0 && !state.hasSeenOnboarding) {
     const onboardCard = createOnboardingCard();
     onboardCard.style.zIndex = '101';
@@ -167,7 +164,6 @@ export function renderStack(){
       card.style.transform = `translateY(${-i * 8}px) scale(${1 - i * 0.04})`;
     }
 
-    // ✅ 完整的卡片內容
     const title = r.name || 'Unknown';
     const rating = r.rating ? `⭐ ${r.rating.toFixed(1)}` : '';
     const distance = r.distanceMeters ? `${(r.distanceMeters/1000).toFixed(1)}km` : '';
@@ -176,7 +172,6 @@ export function renderStack(){
     const priceSymbols = '$'.repeat(Math.max(1, r.price || 1));
     const priceChip = `<span class="chip" style="background:linear-gradient(135deg,var(--primary),var(--primary-2)); color:#220b07; font-weight:800;">${priceSymbols}</span>`;
     
-    // 類型標籤
     const typeMap = {
       restaurant: state.lang === 'zh' ? '餐廳' : 'Restaurant',
       cafe: state.lang === 'zh' ? '咖啡廳' : 'Cafe',
@@ -190,35 +185,33 @@ export function renderStack(){
       .map(t => `<span class="chip">${typeMap[t]}</span>`)
       .join('');
     
-    // 營業狀態
     const openBadge = r.opening_hours?.open_now 
       ? `<span style="color:var(--ok); font-size:12px;">● ${t("nowOpen")}</span>` 
       : r.opening_hours?.open_now === false 
       ? `<span style="color:var(--bad); font-size:12px;">● ${t("nowClose")}</span>` 
       : '';
     
-    // 贊助標記
     const sponsorBadge = r.isSponsored 
       ? `<div class="sponsor-badge">${t("sponsor")}</div>` 
       : '';
     
-    // 照片或佔位符
     const photoHtml = r.photoUrl 
       ? `<img src="${r.photoUrl}" class="card-photo" alt="${title}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
          <div class="photo-placeholder" style="display:none;">${ICONS.image}</div>`
       : `<div class="photo-placeholder">${ICONS.image}</div>`;
 
+    // ✅ 修改：圖片在上，文字在下
     card.innerHTML = `
       ${sponsorBadge}
       <div class="badge like">${t('like')}</div>
       <div class="badge nope">${t('nope')}</div>
+      ${photoHtml}
       <div class="card-content">
         <div class="title">${title}</div>
         <div class="meta">${meta}</div>
         <div class="row">${priceChip}${typeChips}</div>
         ${openBadge ? `<div style="margin-top:4px;">${openBadge}</div>` : ''}
       </div>
-      ${photoHtml}
     `;
     
     stack.appendChild(card);
@@ -229,7 +222,6 @@ export function renderStack(){
   });
 }
 
-// ✅ Onboarding 卡片的拖曳處理
 function attachDragToOnboarding(card) {
   let startX = 0, dx = 0;
   
@@ -254,7 +246,6 @@ function attachDragToOnboarding(card) {
     card.removeEventListener('pointerup', onPointerUp);
     
     if (Math.abs(dx) > card.offsetWidth * 0.4) {
-      // 完成 onboarding
       state.hasSeenOnboarding = true;
       saveOnboarding();
       analytics.track('onboarding', 'complete');
@@ -273,7 +264,6 @@ function attachDragToOnboarding(card) {
   card.addEventListener('pointerdown', onPointerDown);
 }
 
-// ✅ 一般卡片的拖曳處理
 function attachDrag(card) {
   let startX = 0, startY = 0, dx = 0, dy = 0;
   const ROTATION_FACTOR = 0.1;
@@ -316,6 +306,7 @@ function attachDrag(card) {
     }
   }
 
+  // ✅ 修改：直接調用全局函數
   const flyOut = (liked) => {
     const endX = liked ? card.offsetWidth * 1.5 : -card.offsetWidth * 1.5;
     const endRotation = (endX / (card.offsetWidth / 2)) * 15;
@@ -324,20 +315,16 @@ function attachDrag(card) {
     card.style.opacity = 0;
     if(navigator.vibrate) try { navigator.vibrate(12); } catch(e){}
     
-    // 通知 app.js 執行選擇邏輯
     setTimeout(() => {
-      const event = new CustomEvent('cardSwiped', { detail: { liked } });
-      document.dispatchEvent(event);
+      if (window.handleCardSwipe) {
+        window.handleCardSwipe(liked);
+      }
     }, 160);
   };
   
   card.addEventListener('pointerdown', onPointerDown);
 }
 
-// 繼續下一部分...
-// ui.js (第2部分) - 加在第1部分後面
-
-// ✅ 新增：顯示結果頁面
 export function show(screen){ 
   if (screen === 'swipe') {
     $("#swipe").style.display = 'flex';
@@ -349,7 +336,6 @@ export function show(screen){
   }
 }
 
-// ✅ 新增：渲染餐廳詳細資訊
 export function renderResult(r) {
   const rname = r.name || 'Unknown';
   const rating = r.rating ? `⭐ ${r.rating.toFixed(1)}` : '';
@@ -389,7 +375,6 @@ export function renderResult(r) {
     <div style="color:#ffe7d6;">${r.address || ''}</div>
   `;
   
-  // 營業時間
   const hoursBadge = $("#hoursBadge");
   const hoursBox = $("#hoursBox");
   const toggleHours = $("#toggleHours");
@@ -420,7 +405,6 @@ export function renderResult(r) {
   
   hoursBox.classList.remove("show");
   
-  // 地圖按鈕
   $("#btnMap").onclick = () => {
     if (r.googleMapsUrl) {
       window.open(r.googleMapsUrl, "_blank");
@@ -432,7 +416,6 @@ export function renderResult(r) {
     analytics.track('action', 'map_click', { place_id: r.id });
   };
   
-  // 官網按鈕
   const btnWebsite = $("#btnWebsite");
   if (r.website) {
     btnWebsite.style.display = "flex";
@@ -444,7 +427,6 @@ export function renderResult(r) {
   show('result');
 }
 
-// ✅ 收藏和歷史列表
 export function renderFavs() {
   const list = $("#favList");
   list.innerHTML = "";
