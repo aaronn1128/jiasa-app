@@ -203,7 +203,12 @@ function closeModal() {
 }
 
 function setupEventHandlers() {
-    // 卡片滑動事件
+    // ✅ 新增：全局滑卡處理函數
+    window.handleCardSwipe = (liked) => {
+        choose(liked);
+    };
+    
+    // 卡片滑動事件（保留作為備用）
     document.addEventListener('cardSwiped', (e) => {
         choose(e.detail.liked);
     });
