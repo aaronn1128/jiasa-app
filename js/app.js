@@ -1,10 +1,10 @@
-// js/app.js (最終 API 路徑修正版)
+// js/app.js (完整版)
 import { CONFIG } from './config.js';
-import { state, saveFilters, saveHistory } from './state.js';
+import { state, saveFilters, saveHistory, saveFavs } from './state.js';
 import * as UI from './ui.js';
 import { analytics } from './analytics.js';
 
-export { choose, nextCard, openModal, buildPool, undoSwipe };
+export { choose, nextCard, openModal, buildPool, undoSwipe, addFav };
 
 class RecommendationEngine {
     constructor() {
@@ -52,6 +52,7 @@ function transformPlaceData(p) {
         },
         website: p.websiteUri || '',
         googleMapsUrl: p.googleMapsUri || '',
+        isSponsored: false
     };
 }
 
@@ -82,7 +83,6 @@ function getUserLocation() {
 
 async function fetchNearbyPlaces(location, radius, category) {
   const { lat, lng } = location;
-  // ✅ 修正: 在參數之間加上 "&"
   const apiUrl = `/api/search?lat=${lat}&lng=${lng}&radius=${radius}&category=${category}&lang=${state.lang}`;
   const response = await fetch(apiUrl);
   if (!response.ok) {
@@ -128,13 +128,21 @@ function choose(liked) {
         state.undoSlot = current;
         recommender.learn(current, liked);
         
-        state.history.unshift(current);
+        state.history.unshift({ id: current.id, ts: Date.now() });
         if (state.history.length > 50) state.history.pop();
         saveHistory();
 
         analytics.trackSwipe(current, liked ? 'like' : 'skip');
+        
+        if (liked) {
+            // 顯示結果頁面
+            state.current = current;
+            UI.renderResult(current);
+        }
     }
-    nextCard();
+    if (!liked) {
+        nextCard();
+    }
 }
 
 function nextCard() {
@@ -148,6 +156,15 @@ function undoSwipe() {
     state.undoSlot = null;
     UI.renderStack();
     analytics.track('swipe_undo', 'undo');
+}
+
+function addFav(r) {
+    if (!state.favs.includes(r.id)) {
+        state.favs.unshift(r.id);
+        saveFavs();
+        analytics.track('fav_add', r.id);
+        UI.showToast(UI.t('favoriteAdded'), 'success');
+    }
 }
 
 function openModal() {
@@ -184,9 +201,17 @@ function closeModal() {
 }
 
 function setupEventHandlers() {
+    // 卡片滑動事件
+    document.addEventListener('cardSwiped', (e) => {
+        choose(e.detail.liked);
+    });
+    
+    // 按鈕事件
     UI.$('#btnUndo').addEventListener('click', undoSwipe);
     UI.$('#btnChoose').addEventListener('click', () => choose(true));
     UI.$('#btnSkip').addEventListener('click', () => choose(false));
+    
+    // 導航事件
     UI.$('#navHome').addEventListener('click', () => {
         UI.closeAllModals();
         UI.show('swipe');
@@ -195,10 +220,28 @@ function setupEventHandlers() {
     UI.$('#navHistory').addEventListener('click', UI.openHistModal);
     UI.$('#navSettings').addEventListener('click', openModal);
     UI.$('#navRefresh').addEventListener('click', buildPool);
+    
+    // Modal 事件
     UI.$('#btnClose').addEventListener('click', closeModal);
     UI.$('#applySettings').addEventListener('click', applySettings);
     UI.$('#btnClearFilters').addEventListener('click', UI.clearAllFiltersInModal);
+    
+    // 收藏和歷史 Modal 關閉
+    UI.$('#favClose').addEventListener('click', UI.closeAllModals);
+    UI.$('#histClose').addEventListener('click', UI.closeAllModals);
+    
+    // Overlay 點擊關閉
+    UI.$('#overlay').addEventListener('click', (e) => {
+        if (e.target === UI.$('#overlay')) UI.closeAllModals();
+    });
+    UI.$('#favOverlay').addEventListener('click', (e) => {
+        if (e.target === UI.$('#favOverlay')) UI.closeAllModals();
+    });
+    UI.$('#histOverlay').addEventListener('click', (e) => {
+        if (e.target === UI.$('#histOverlay')) UI.closeAllModals();
+    });
 
+    // 語言和主題切換
     UI.$("#langSelModal").addEventListener("change", (e)=>{
         if(!state.staged) return;
         state.staged.preview.lang = e.target.value;
@@ -213,6 +256,21 @@ function setupEventHandlers() {
         UI.applyTheme(e.target.value);
     });
 
+    // 結果頁面按鈕
+    UI.$('#btnBack').addEventListener('click', () => {
+        UI.show('swipe');
+        UI.renderStack();
+    });
+    
+    UI.$('#btnFav').addEventListener('click', () => {
+        if (state.current) {
+            addFav(state.current);
+        }
+        UI.show('swipe');
+        UI.renderStack();
+    });
+
+    // 錯誤頁面的按鈕
     document.body.addEventListener('click', (e) => {
         if (e.target.id === 'retryBtn') buildPool();
         if (e.target.id === 'adjustFiltersBtn') openModal();
@@ -246,4 +304,3 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(console.error);
   });
 }
-
