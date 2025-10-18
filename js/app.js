@@ -111,13 +111,15 @@ async function buildPool() {
     state.index = 0;
     state.undoSlot = null;
     analytics.track('filter_apply', 'nearby', { count: state.pool.length, ...state.filters });
-    UI.renderStack();
+    
   } catch (error) {
     console.error("Build Pool Error:", error);
     UI.renderError(error.message || '搜尋失敗，請稍後再試');
   } finally {
     state.isLoading = false;
     UI.setButtonsLoading(false);
+    // ✅ 關鍵修復：在 finally 區塊中渲染，確保無論成功或失敗都會執行
+    UI.renderStack();
   }
 }
 
