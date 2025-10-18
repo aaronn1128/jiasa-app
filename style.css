@@ -13,6 +13,9 @@
   --select-bg:#2b1c14;
   --select-text:#f5e0c5;
   --select-border:#5a4638;
+  --ok:#22c55e;
+  --bad:#ef4444;
+  --sponsor:#ffd700;
 }
 
 * { 
@@ -26,7 +29,7 @@ html, body {
   background:#000; 
 }
 
-/* 啟動動畫 */
+/* ========== 啟動動畫 ========== */
 .splash-screen { 
   position: fixed; 
   inset: 0; 
@@ -77,7 +80,7 @@ html, body {
 @keyframes slideFromBehind { from { opacity: 0; transform: translateX(-80px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes arrowZoomIn { 0% { opacity: 0; transform: translateX(-60px) scale(0.5) rotate(-20deg); } 60% { transform: translateX(3px) scale(1.1) rotate(5deg); } 100% { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); } }
 
-/* App 結構 */
+/* ========== App 結構 ========== */
 .phone { 
   width:390px; 
   height:100vh; 
@@ -124,7 +127,7 @@ main {
   margin:12px; 
 }
 
-/* 卡片 */
+/* ========== 卡片 ========== */
 .swipe-card { 
   position:absolute; 
   inset:0; 
@@ -141,6 +144,13 @@ main {
   flex-direction: column; 
   gap: 8px; 
 }
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .title { 
   font-size:clamp(18px, 3.5vw, 22px); 
   font-weight:800; 
@@ -197,7 +207,104 @@ main {
   transform:rotate(15deg); 
 }
 
-/* 控制按鈕 */
+/* ========== Onboarding 卡片 ========== */
+.swipe-card.onboard-card { 
+  background: linear-gradient(135deg, #3a2118 0%, #2b1912 100%); 
+  border: 2px solid var(--primary); 
+  box-shadow: 0 14px 40px rgba(255,138,61,.3), 0 0 0 1px rgba(255,138,61,.2); 
+}
+.onboard-content { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+  overflow-y: auto; 
+  -webkit-overflow-scrolling: touch; 
+}
+.onboard-title { 
+  font-size: 24px; 
+  font-weight: 900; 
+  color: var(--primary); 
+  margin-bottom: 4px; 
+}
+.onboard-subtitle { 
+  font-size: 14px; 
+  color: var(--muted); 
+  margin-bottom: 8px; 
+}
+.instruction-item { 
+  display: flex; 
+  gap: 12px; 
+  padding: 10px; 
+  background: rgba(255,255,255,.03); 
+  border-radius: 10px; 
+  border: 1px solid rgba(255,255,255,.08); 
+}
+.instruction-icon { 
+  flex-shrink: 0; 
+  width: 36px; 
+  height: 36px; 
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)); 
+  border-radius: 8px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  padding: 8px; 
+}
+.instruction-icon svg { 
+  width: 100%; 
+  height: 100%; 
+  stroke: #220b07; 
+  fill: none; 
+  stroke-width: 2; 
+  stroke-linecap: round; 
+  stroke-linejoin: round; 
+}
+.instruction-text { 
+  flex: 1; 
+}
+.instruction-text strong { 
+  display: block; 
+  color: var(--fg); 
+  margin-bottom: 2px; 
+  font-size: 14px; 
+}
+.instruction-text span { 
+  display: block; 
+  color: var(--muted); 
+  font-size: 12px; 
+  line-height: 1.4; 
+}
+.swipe-hint-box { 
+  margin-top: auto; 
+  padding: 10px; 
+  text-align: center; 
+  color: var(--muted); 
+  font-size: 12px; 
+}
+
+/* ========== 贊助商卡片 ========== */
+.swipe-card.sponsor-card { 
+  background: linear-gradient(135deg, #2b1912 0%, #3a2118 100%); 
+  border: 1px solid rgba(255,215,0,.4); 
+  box-shadow: 0 14px 40px rgba(0,0,0,.55), 0 0 20px rgba(255,215,0,.15); 
+}
+.sponsor-badge { 
+  position: absolute; 
+  top: 14px; 
+  right: 14px; 
+  background: linear-gradient(135deg, var(--sponsor), #ffed4e); 
+  color: #1b0f0a; 
+  padding: 4px 10px; 
+  border-radius: 6px; 
+  font-size: 11px; 
+  font-weight: 800; 
+  letter-spacing: 0.5px; 
+  box-shadow: 0 2px 8px rgba(255,215,0,.4); 
+  z-index: 10; 
+}
+
+/* ========== 控制按鈕 ========== */
 .controls { 
   display:flex; 
   gap:10px; 
@@ -219,6 +326,7 @@ main {
   justify-content:center; 
   gap:8px; 
   transition: all .2s; 
+  text-decoration: none;
 }
 .btn:hover { 
   background: rgba(255,255,255,.08); 
@@ -242,6 +350,16 @@ main {
   cursor:not-allowed; 
   pointer-events:none; 
 } 
+.btn-icon { 
+  width:18px; 
+  height:18px; 
+  stroke:currentColor; 
+  fill:none; 
+  stroke-width:2; 
+  stroke-linecap:round; 
+  stroke-linejoin:round; 
+  flex-shrink:0; 
+}
 .hint { 
   color:var(--muted); 
   font-size:12px; 
@@ -258,7 +376,7 @@ main {
   text-align:center; 
 }
 
-/* 載入中骨架 */
+/* ========== 骨架屏 ========== */
 .skeleton-card { 
   position: absolute; 
   inset: 0; 
@@ -284,7 +402,108 @@ main {
 .skeleton-title { height: 24px; width: 70%; } 
 .skeleton-meta { height: 16px; width: 50%; }
 
-/* Modal 彈出視窗 */
+/* ========== 結果頁面 ========== */
+#result {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.55);
+  animation: fadeIn .25s ease;
+  margin-bottom: 12px;
+}
+.hero {
+  width: 100%;
+  height: 220px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin-bottom: 10px;
+  border: 1px solid var(--divider);
+  display: block;
+}
+.divider {
+  border-top: 1px dashed var(--divider);
+  margin: 12px 0;
+}
+.kv {
+  margin-top: 8px;
+  color: #ffe7d6;
+  font-size: 14px;
+}
+.hours-badge {
+  font-weight: 800;
+  margin-top: 8px;
+}
+.hours-badge.open {
+  color: #22c55e;
+}
+.hours-badge.closed {
+  color: #ef4444;
+}
+.hours-box {
+  border: 1px dashed var(--divider);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  display: none;
+}
+.hours-box.show {
+  display: block;
+}
+.hours-row {
+  padding: 4px 0;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  color: #ffe7d6;
+}
+.hours-day {
+  color: var(--muted);
+}
+.result-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
+}
+.result-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
+}
+
+/* ========== 標籤 ========== */
+.row { 
+  display:flex; 
+  gap:8px; 
+  flex-wrap:wrap; 
+} 
+.chip { 
+  font-size:12px; 
+  color:#ffd9c6; 
+  background:#3a2118; 
+  padding:6px 9px; 
+  border-radius:999px; 
+  border:1px solid rgba(255,255,255,.14); 
+}
+
+/* ========== Modal 彈出視窗 ========== */
 .overlay { 
   position:fixed; 
   inset:0; 
@@ -388,7 +607,7 @@ main {
   color: var(--fg); 
 }
 
-/* 膠囊按鈕 */
+/* ========== 藥囊按鈕 ========== */
 .pill-group { 
   display: flex; 
   flex-wrap: wrap; 
@@ -417,7 +636,7 @@ main {
   font-weight: 700; 
 }
 
-/* 下拉選單 */
+/* ========== 下拉選單 ========== */
 .select { 
   width:100%; 
   background: var(--select-bg); 
@@ -434,7 +653,7 @@ main {
   color: var(--select-text); 
 } 
 
-/* 底部導航列 */
+/* ========== 底部導航列 ========== */
 .bottom-nav { 
   position: fixed; 
   bottom: 0; 
@@ -486,7 +705,142 @@ main {
   color: var(--primary); 
 }
 
-/* 主題 */
+/* ========== 列表樣式 (收藏/歷史) ========== */
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--divider);
+  color: var(--fg);
+}
+.list-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #40261c;
+  border: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #ffd9c6;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.list-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.list-meta {
+  font-size: 12px;
+  color: #ffdabf;
+  margin-top: 2px;
+}
+.row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.i-btn {
+  border: 1px solid var(--divider);
+  background: #2b1912;
+  color: #ffe7d6;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all .2s;
+}
+.i-btn:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.24);
+}
+.empty {
+  color: var(--muted);
+  text-align: center;
+  margin-top: 60px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+/* ========== Toast 通知 ========== */
+.toast {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  color: var(--fg);
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--divider);
+  box-shadow: 0 8px 24px rgba(0,0,0,.6);
+  z-index: 9999;
+  animation: toastIn .3s ease;
+  max-width: 80%;
+  text-align: center;
+  font-size: 14px;
+}
+.toast.success {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, var(--card));
+}
+.toast.error {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, var(--card));
+}
+.toast.offline {
+  border-color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 10%, var(--card));
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ========== 離線標記 ========== */
+.offline-badge {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--muted);
+  color: var(--bg);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 6000;
+  display: none;
+}
+.offline-badge.show {
+  display: block;
+  animation: fadeIn .3s ease;
+}
+
+/* ========== 動畫 ========== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== 主題 ========== */
 body.theme-mocha { 
   --bg:#1f1b16; 
   --card:#2a241e; 
@@ -511,4 +865,3 @@ body.theme-sakura {
   --primary:#ff8fb3; 
   --primary-2:#e66a94; 
 }
-
