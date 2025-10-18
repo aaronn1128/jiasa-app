@@ -267,62 +267,107 @@ function attachDragToOnboarding(card) {
 function attachDrag(card) {
   let startX = 0, startY = 0, dx = 0, dy = 0;
   const ROTATION_FACTOR = 0.1;
+  let isDragging = false;
 
   function onPointerDown(e) {
+    if (e.button && e.button !== 0) return;
+    
     e.preventDefault();
-    startX = e.clientX;
-    startY = e.clientY;
+    isDragging = true;
+    startX = e.clientX || e.touches?.[0]?.clientX;
+    startY = e.clientY || e.touches?.[0]?.clientY;
     card.style.transition = 'none';
-    card.setPointerCapture(e.pointerId);
-    card.addEventListener('pointermove', onPointerMove);
+    
+    if (e.pointerId !== undefined) {
+      card.setPointerCapture(e.pointerId);
+    }
+    
+    card.addEventListener('pointermove', onPointerMove, { passive: false });
     card.addEventListener('pointerup', onPointerUp);
     card.addEventListener('pointercancel', onPointerUp);
   }
 
   function onPointerMove(e) {
+    if (!isDragging) return;
+    
     e.preventDefault();
-    dx = e.clientX - startX;
-    dy = e.clientY - startY;
+    const currentX = e.clientX || e.touches?.[0]?.clientX;
+    const currentY = e.clientY || e.touches?.[0]?.clientY;
+    
+    dx = currentX - startX;
+    dy = currentY - startY;
     const rotation = dx * ROTATION_FACTOR;
     card.style.transform = `translate(${dx}px, ${dy}px) rotate(${rotation}deg)`;
     const opacity = Math.abs(dx) / (card.offsetWidth / 2);
-    card.querySelector('.like').style.opacity = dx > 0 ? opacity : 0;
-    card.querySelector('.nope').style.opacity = dx < 0 ? opacity : 0;
+    
+    const likeBadge = card.querySelector('.like');
+    const nopeBadge = card.querySelector('.nope');
+    
+    if (likeBadge && nopeBadge) {
+      likeBadge.style.opacity = dx > 0 ? Math.min(opacity, 1) : 0;
+      nopeBadge.style.opacity = dx < 0 ? Math.min(opacity, 1) : 0;
+    }
   }
 
   function onPointerUp(e) {
-    card.releasePointerCapture(e.pointerId);
+    if (!isDragging) return;
+    
+    isDragging = false;
+    
+    if (e.pointerId !== undefined) {
+      card.releasePointerCapture(e.pointerId);
+    }
+    
     card.removeEventListener('pointermove', onPointerMove);
     card.removeEventListener('pointerup', onPointerUp);
     card.removeEventListener('pointercancel', onPointerUp);
     
-    if (Math.abs(dx) > card.offsetWidth * 0.4) {
+    const threshold = card.offsetWidth * 0.4;
+    
+    if (Math.abs(dx) > threshold) {
       flyOut(dx > 0);
     } else {
       card.style.transition = 'all .3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
       card.style.transform = '';
-      card.querySelector('.like').style.opacity = 0;
-      card.querySelector('.nope').style.opacity = 0;
+      
+      const likeBadge = card.querySelector('.like');
+      const nopeBadge = card.querySelector('.nope');
+      if (likeBadge) likeBadge.style.opacity = 0;
+      if (nopeBadge) nopeBadge.style.opacity = 0;
     }
   }
 
-  // ✅ 修改：直接調用全局函數
   const flyOut = (liked) => {
     const endX = liked ? card.offsetWidth * 1.5 : -card.offsetWidth * 1.5;
     const endRotation = (endX / (card.offsetWidth / 2)) * 15;
     card.style.transition = 'all .4s ease-out';
     card.style.transform = `translate(${endX}px, ${dy}px) rotate(${endRotation}deg)`;
     card.style.opacity = 0;
-    if(navigator.vibrate) try { navigator.vibrate(12); } catch(e){}
+    
+    if (navigator.vibrate) {
+      try { navigator.vibrate(12); } catch(e) {}
+    }
     
     setTimeout(() => {
+      console.log('[UI] Calling handleCardSwipe:', liked);
       if (window.handleCardSwipe) {
         window.handleCardSwipe(liked);
+      } else {
+        console.error('[UI] handleCardSwipe not found!');
       }
     }, 160);
   };
   
   card.addEventListener('pointerdown', onPointerDown);
+  
+  card.addEventListener('touchstart', (e) => {
+    const touch = e.touches[0];
+    onPointerDown({
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      preventDefault: () => e.preventDefault()
+    });
+  }, { passive: false });
 }
 
 export function show(screen){ 
