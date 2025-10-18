@@ -139,7 +139,9 @@ main {
   background: linear-gradient(135deg, #3a2118 0%, #2b1912 100%); 
   border: 2px solid var(--primary); 
   box-shadow: 0 14px 40px rgba(255,138,61,.3), 0 0 0 1px rgba(255,138,61,.2); 
-  padding: 12px;
+  padding: 16px !important;
+  display: flex;
+  flex-direction: column;
 }
 .onboard-content { 
   flex: 1; 
@@ -652,7 +654,146 @@ main {
   width: 42px;
   height: 42px;
   border-radius: 8px;
-  background: #40:root { 
+  background: #40261c;
+  border: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #ffd9c6;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.list-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.list-meta {
+  font-size: 12px;
+  color: #ffdabf;
+  margin-top: 2px;
+}
+.row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.i-btn {
+  border: 1px solid var(--divider);
+  background: #2b1912;
+  color: #ffe7d6;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all .2s;
+}
+.i-btn:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.24);
+}
+.empty {
+  color: var(--muted);
+  text-align: center;
+  margin-top: 60px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+/* ========== Toast 通知 ========== */
+.toast {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  color: var(--fg);
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--divider);
+  box-shadow: 0 8px 24px rgba(0,0,0,.6);
+  z-index: 9999;
+  animation: toastIn .3s ease;
+  max-width: 80%;
+  text-align: center;
+  font-size: 14px;
+}
+.toast.success {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, var(--card));
+}
+.toast.error {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, var(--card));
+}
+.toast.offline {
+  border-color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 10%, var(--card));
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ========== 離線標記 ========== */
+.offline-badge {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--muted);
+  color: var(--bg);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 6000;
+  display: none;
+}
+.offline-badge.show {
+  display: block;
+  animation: fadeIn .3s ease;
+}
+
+/* ========== 動畫 ========== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== 主題 ========== */
+body.theme-mocha { 
+  --bg:#1f1b16; 
+  --card:#2a241e; 
+  --fg:#f4efe8; 
+  --muted:#b9a897; 
+  --primary:#d6a676; 
+  --primary-2:#b88757; 
+}
+body.theme-olive { 
+  --bg:#0f120e; 
+  --card:#171b16; 
+  --fg:#e9f0e6; 
+  --muted:#a6b2a2; 
+  --primary:#8bbf5a; 
+  --primary-2:#6ca83f; 
+}
+body.theme-sakura { 
+  --bg:#110e11; 
+  --card:#1a151a; 
+  --fg:#ffeef3; 
+  --muted:#f8c6d4; 
+  --primary:#ff8fb3; 
+  --primary-2:#e66a94; 
+}:root { 
   --bg:#1b0f0a;
   --fg:#fff6f0;
   --muted:#ffddc9;
