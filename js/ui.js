@@ -1,4 +1,4 @@
-// js/ui.js - 完整修復版
+// js/ui.js - 修正版
 import { I18N, CONFIG, ICONS } from './config.js';
 import { state, saveFavs, saveHistory, saveOnboarding } from './state.js';
 import { analytics } from './analytics.js';
@@ -200,7 +200,7 @@ export function renderStack(){
          <div class="photo-placeholder" style="display:none;">${ICONS.image}</div>`
       : `<div class="photo-placeholder">${ICONS.image}</div>`;
 
-    // ✅ 修改：圖片在上，文字在下
+    // ✅ 修正：圖片在上，文字在下，使用正確的容器結構
     card.innerHTML = `
       ${sponsorBadge}
       <div class="badge like">${t('like')}</div>
@@ -349,7 +349,6 @@ function attachDrag(card) {
     }
     
     setTimeout(() => {
-      console.log('[UI] Calling handleCardSwipe:', liked);
       if (window.handleCardSwipe) {
         window.handleCardSwipe(liked);
       } else {
