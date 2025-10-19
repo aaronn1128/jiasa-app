@@ -1,4 +1,4 @@
-// js/app.js (完整版)
+// js/app.js (完整版 - 修正餐廳錯位)
 import { CONFIG } from './config.js';
 import { state, saveFilters, saveHistory, saveFavs } from './state.js';
 import * as UI from './ui.js';
@@ -118,31 +118,43 @@ async function buildPool() {
   } finally {
     state.isLoading = false;
     UI.setButtonsLoading(false);
-    // ✅ 關鍵修復：在 finally 區塊中渲染，確保無論成功或失敗都會執行
     UI.renderStack();
   }
 }
 
 function choose(liked) {
     if(state.index >= state.pool.length) return;
+    
+    // ✅ 關鍵修正：確保取得正確的當前餐廳
     const current = state.pool[state.index];
-    if (current) {
-        state.undoSlot = current;
-        recommender.learn(current, liked);
-        
-        state.history.unshift({ id: current.id, ts: Date.now() });
-        if (state.history.length > 50) state.history.pop();
-        saveHistory();
-
-        analytics.trackSwipe(current, liked ? 'like' : 'skip');
-        
-        if (liked) {
-            // 顯示結果頁面
-            state.current = current;
-            UI.renderResult(current);
-        }
+    if (!current) {
+        console.error('[App] No restaurant at current index:', state.index);
+        return;
     }
-    if (!liked) {
+    
+    console.log('[App] Choose called - liked:', liked, 'restaurant:', current.name, 'id:', current.id);
+    
+    // 儲存到撤銷槽
+    state.undoSlot = current;
+    
+    // 學習偏好
+    recommender.learn(current, liked);
+    
+    // 加入歷史記錄
+    state.history.unshift({ id: current.id, ts: Date.now() });
+    if (state.history.length > 50) state.history.pop();
+    saveHistory();
+
+    // 追蹤分析
+    analytics.trackSwipe(current, liked ? 'like' : 'skip');
+    
+    if (liked) {
+        // ✅ 確保 state.current 設定正確
+        state.current = current;
+        console.log('[App] Setting state.current to:', state.current.name);
+        UI.renderResult(current);
+    } else {
+        // 如果是 skip，直接進入下一張
         nextCard();
     }
 }
@@ -203,8 +215,9 @@ function closeModal() {
 }
 
 function setupEventHandlers() {
-    // ✅ 新增：全局滑卡處理函數
+    // ✅ 全局滑卡處理函數
     window.handleCardSwipe = (liked) => {
+        console.log('[App] handleCardSwipe called with liked:', liked);
         choose(liked);
     };
     
@@ -265,16 +278,22 @@ function setupEventHandlers() {
 
     // 結果頁面按鈕
     UI.$('#btnBack').addEventListener('click', () => {
+        // ✅ 返回時移動到下一張卡片
+        nextCard();
         UI.show('swipe');
-        UI.renderStack();
     });
     
     UI.$('#btnFav').addEventListener('click', () => {
+        // ✅ 使用 state.current 而不是重新取得
         if (state.current) {
+            console.log('[App] Adding favorite:', state.current.name);
             addFav(state.current);
+        } else {
+            console.error('[App] No current restaurant to favorite');
         }
+        // ✅ 返回時移動到下一張卡片
+        nextCard();
         UI.show('swipe');
-        UI.renderStack();
     });
 
     // 錯誤頁面的按鈕
