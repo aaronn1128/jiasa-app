@@ -215,10 +215,10 @@ function closeModal() {
 }
 
 function setupEventHandlers() {
-    // ✅ 全局滑卡處理函數
-    window.handleCardSwipe = (liked) => {
-        console.log('[App] handleCardSwipe called with liked:', liked);
-        choose(liked);
+    // ✅ 全局滑卡處理函數 - 接收餐廳物件
+    window.handleCardSwipe = (liked, restaurant) => {
+        console.log('[App] handleCardSwipe called - liked:', liked, 'restaurant:', restaurant?.name);
+        choose(liked, restaurant);
     };
     
     // 卡片滑動事件（保留作為備用）
