@@ -160,6 +160,10 @@ export function renderStack(){
     card.className = r.isSponsored ? 'swipe-card sponsor-card' : 'swipe-card';
     card.style.zIndex = 100 - i;
     
+    // ✅ 關鍵修正：將餐廳資料綁定到卡片元素上
+    card.dataset.restaurantId = r.id;
+    card.dataset.restaurantName = r.name;
+    
     if (i > 0) {
       card.style.transform = `translateY(${-i * 8}px) scale(${1 - i * 0.04})`;
     }
@@ -381,9 +385,315 @@ export function show(screen){
 }
 
 export function renderResult(r) {
+  // ✅ 添加調試信息
+  console.log('[UI] renderResult called with:', r.name, 'id:', r.id);
+  
   const rname = r.name || 'Unknown';
   const rating = r.rating ? `⭐ ${r.rating.toFixed(1)}` : '';
-  const priceSymbols = '$'.repeat(Math.max(1, r.price || 1));
+  const priceSymbols = '
+  
+  const typeMap = {
+    restaurant: state.lang === 'zh' ? '餐廳' : 'Restaurant',
+    cafe: state.lang === 'zh' ? '咖啡廳' : 'Cafe',
+    bar: state.lang === 'zh' ? '酒吧' : 'Bar',
+    bakery: state.lang === 'zh' ? '烘焙坊' : 'Bakery'
+  };
+  
+  const typeChips = r.types
+    .filter(t => typeMap[t])
+    .map(t => `<span class="chip">${typeMap[t]}</span>`)
+    .join('');
+  
+  const priceChip = `<span class="chip" style="background:linear-gradient(135deg,var(--primary),var(--primary-2)); color:#220b07; font-weight:800;">${priceSymbols}</span>`;
+  
+  const sponsorBadge = r.isSponsored 
+    ? `<div style="display:inline-block; background:linear-gradient(135deg, var(--sponsor), #ffed4e); color:#1b0f0a; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:800; margin-left:8px;">${t("sponsor")}</div>` 
+    : '';
+  
+  $("#resultBody").innerHTML = `
+    <div class="title">${rname}${sponsorBadge}</div>
+    <div class="meta" style="margin:6px 0 10px;">${rating}</div>
+    <div class="row">${priceChip}${typeChips}</div>
+    <div class="divider"></div>
+    <div style="color:#ffe7d6;">${r.address || ''}</div>
+  `;
+  
+  const hoursBadge = $("#hoursBadge");
+  const hoursBox = $("#hoursBox");
+  const toggleHours = $("#toggleHours");
+  
+  if (r.opening_hours?.open_now !== undefined) {
+    hoursBadge.textContent = r.opening_hours.open_now ? `● ${t("nowOpen")}` : `● ${t("nowClose")}`;
+    hoursBadge.className = r.opening_hours.open_now ? "hours-badge open" : "hours-badge closed";
+  } else {
+    hoursBadge.textContent = "";
+  }
+  
+  if (r.opening_hours?.weekday_text) {
+    const hoursHTML = r.opening_hours.weekday_text.map(day => {
+      const parts = day.split(': ');
+      return `<div class="hours-row"><span class="hours-day">${parts[0]}</span><span>${parts[1] || ''}</span></div>`;
+    }).join('');
+    hoursBox.innerHTML = hoursHTML;
+    toggleHours.style.display = "block";
+  } else {
+    hoursBox.innerHTML = "";
+    toggleHours.style.display = "none";
+  }
+  
+  toggleHours.onclick = () => {
+    hoursBox.classList.toggle("show");
+    toggleHours.textContent = hoursBox.classList.contains("show") ? t("hideHours") : t("showHours");
+  };
+  
+  hoursBox.classList.remove("show");
+  
+  $("#btnMap").onclick = () => {
+    if (r.googleMapsUrl) {
+      window.open(r.googleMapsUrl, "_blank");
+    } else if (r.location) {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${r.location.lat},${r.location.lng}`, "_blank");
+    } else {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rname)}`, "_blank");
+    }
+    analytics.track('action', 'map_click', { place_id: r.id });
+  };
+  
+  const btnWebsite = $("#btnWebsite");
+  if (r.website) {
+    btnWebsite.style.display = "flex";
+    btnWebsite.href = r.website;
+  } else {
+    btnWebsite.style.display = "none";
+  }
+  
+  show('result');
+}
+
+export function renderFavs() {
+  const list = $("#favList");
+  list.innerHTML = "";
+  
+  if (!state.favs.length) {
+    list.innerHTML = `<div class="empty">${t("emptyFav")}</div>`;
+    return;
+  }
+  
+  state.favs.forEach(id => {
+    const r = state.pool.find(x => x.id === id);
+    if (!r) return;
+    
+    const row = document.createElement("div");
+    row.className = "list-item";
+    
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    if (r.photoUrl) {
+      const img = document.createElement("img");
+      img.src = r.photoUrl;
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = (r.name[0] || "•").toUpperCase();
+    }
+    
+    const textWrap = document.createElement("div");
+    textWrap.style.minWidth = "0";
+    textWrap.innerHTML = `
+      <div class="list-title">${r.name}</div>
+      <div class="list-meta">⭐ ${(r.rating || 0).toFixed(1)} · ${'$'.repeat(r.price || 1)}</div>
+    `;
+    
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    
+    const viewBtn = document.createElement("button");
+    viewBtn.className = "i-btn";
+    viewBtn.textContent = t("view");
+    viewBtn.onclick = () => {
+      state.current = r;
+      renderResult(r);
+      closeAllModals();
+    };
+    
+    const delBtn = document.createElement("button");
+    delBtn.className = "i-btn";
+    delBtn.textContent = t("del");
+    delBtn.onclick = () => {
+      state.favs = state.favs.filter(x => x !== id);
+      saveFavs();
+      renderFavs();
+    };
+    
+    const left = document.createElement("div");
+    left.className = "list-left";
+    left.appendChild(thumb);
+    left.appendChild(textWrap);
+    
+    actions.appendChild(viewBtn);
+    actions.appendChild(delBtn);
+    
+    row.appendChild(left);
+    row.appendChild(actions);
+    list.appendChild(row);
+  });
+}
+
+export function renderHistory() {
+  const list = $("#histList");
+  list.innerHTML = "";
+  
+  if (!state.history.length) {
+    list.innerHTML = `<div class="empty">${t("emptyHist")}</div>`;
+    return;
+  }
+  
+  state.history.forEach(item => {
+    const r = state.pool.find(x => x.id === item.id);
+    if (!r) return;
+    
+    const row = document.createElement("div");
+    row.className = "list-item";
+    
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    if (r.photoUrl) {
+      const img = document.createElement("img");
+      img.src = r.photoUrl;
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = (r.name[0] || "•").toUpperCase();
+    }
+    
+    const timeStr = new Date(item.ts).toLocaleString(state.lang === "zh" ? "zh-TW" : "en-US");
+    const textWrap = document.createElement("div");
+    textWrap.style.minWidth = "0";
+    textWrap.innerHTML = `
+      <div class="list-title">${r.name}</div>
+      <div class="list-meta">${timeStr}</div>
+    `;
+    
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    
+    const viewBtn = document.createElement("button");
+    viewBtn.className = "i-btn";
+    viewBtn.textContent = t("view");
+    viewBtn.onclick = () => {
+      state.current = r;
+      renderResult(r);
+      closeAllModals();
+    };
+    
+    const delBtn = document.createElement("button");
+    delBtn.className = "i-btn";
+    delBtn.textContent = t("del");
+    delBtn.onclick = () => {
+      state.history = state.history.filter(x => x.ts !== item.ts);
+      saveHistory();
+      renderHistory();
+    };
+    
+    const left = document.createElement("div");
+    left.className = "list-left";
+    left.appendChild(thumb);
+    left.appendChild(textWrap);
+    
+    actions.appendChild(viewBtn);
+    actions.appendChild(delBtn);
+    
+    row.appendChild(left);
+    row.appendChild(actions);
+    list.appendChild(row);
+  });
+}
+
+export function closeAllModals() {
+  document.querySelectorAll('.modal.active, .overlay.active').forEach(el => el.classList.remove('active'));
+  updateNavActive('navHome');
+}
+
+export function updateNavActive(activeId) {
+  ['navHome', 'navFavs', 'navHistory', 'navSettings'].forEach(id => {
+    const el = $("#" + id);
+    if(el) el.classList.toggle('active', id === activeId);
+  });
+}
+
+export function openFavModal(){
+  closeAllModals();
+  $("#favOverlay").classList.add("active"); 
+  $("#favModal").classList.add("active");
+  updateNavActive('navFavs');
+  renderFavs();
+  analytics.track('modal_open', 'favorites');
+}
+
+export function openHistModal(){
+  closeAllModals();
+  $("#histOverlay").classList.add("active"); 
+  $("#histModal").classList.add("active");
+  updateNavActive('navHistory');
+  renderHistory();
+  analytics.track('modal_open', 'history');
+}
+
+function renderPillGroup(containerId, options, selectedValue, onSelect) {
+  const container = $(`#${containerId}`);
+  if (!container) return;
+  container.innerHTML = '';
+  options.forEach(option => {
+    const btn = document.createElement("button");
+    btn.className = "pill";
+    btn.dataset.value = option.value;
+    btn.textContent = state.lang === 'zh' ? (option.label_zh || option.label) : (option.label_en || option.label);
+    if (String(option.value) === String(selectedValue)) {
+      btn.classList.add("active");
+    }
+    btn.onclick = () => {
+      onSelect(option.value);
+      container.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    container.appendChild(btn);
+  });
+}
+
+export function syncUIFromStaged(){
+  if (!state.staged) return;
+  
+  $("#langSelModal").value = state.staged.preview.lang;
+  $("#themeSelect").value = state.staged.preview.theme;
+
+  renderPillGroup('distancePills', CONFIG.FILTER_OPTIONS.distance, state.staged.filters.distance, (value) => {
+    state.staged.filters.distance = value;
+  });
+
+  renderPillGroup('categoryPills', CONFIG.FILTER_OPTIONS.category, state.staged.filters.category, (value) => {
+    state.staged.filters.category = value;
+  });
+
+  renderText();
+}
+
+export function clearAllFiltersInModal() {
+  if (!state.staged) return;
+  state.staged.filters.distance = CONFIG.DEFAULT_FILTERS.distance;
+  state.staged.filters.category = CONFIG.DEFAULT_FILTERS.category;
+  syncUIFromStaged();
+  showToast(t('filtersCleared'), 'success');
+  analytics.track('filters', 'clear_all');
+}
+
+export function showModal(show) {
+  if (show) {
+    closeAllModals();
+    $("#overlay").classList.add("active");
+    $("#modal").classList.add("active");
+    updateNavActive('navSettings');
+  } else {
+    closeAllModals();
+  }
+}.repeat(Math.max(1, r.price || 1));
   
   const hero = $("#hero");
   if (r.photoUrl) {
