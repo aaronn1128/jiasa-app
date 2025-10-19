@@ -122,11 +122,11 @@ async function buildPool() {
   }
 }
 
-function choose(liked) {
+function choose(liked, restaurantFromSwipe = null) {
     if(state.index >= state.pool.length) return;
     
     // ✅ 關鍵修正：確保取得正確的當前餐廳
-    const current = state.pool[state.index];
+    const current = restaurantFromSwipe || state.pool[state.index];
     if (!current) {
         console.error('[App] No restaurant at current index:', state.index);
         return;
