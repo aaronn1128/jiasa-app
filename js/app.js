@@ -148,15 +148,16 @@ function choose(liked, restaurantFromSwipe = null) {
     // 追蹤分析
     analytics.trackSwipe(current, liked ? 'like' : 'skip');
     
-    if (liked) {
-        // ✅ 確保 state.current 設定正確
-        state.current = current;
-        console.log('[App] Setting state.current to:', state.current.name);
-        UI.renderResult(current);
-    } else {
-        // 如果是 skip，直接進入下一張
-        nextCard();
-    }
+if (liked) {
+    // ✅ 確保 state.current 設定正確
+    state.current = current;
+    console.log('[App] Setting state.current to:', state.current.name);
+    UI.renderResult(current);
+}
+
+// ✅ 關鍵修正：無論 'like' 或 'skip'，都必須推進到下一張卡片
+// 這樣 'state.index' 才會永遠保持在 '下一張'
+nextCard();
 }
 
 function nextCard() {
@@ -277,24 +278,22 @@ function setupEventHandlers() {
     });
 
     // 結果頁面按鈕
-    UI.$('#btnBack').addEventListener('click', () => {
-        // ✅ 返回時移動到下一張卡片
-        nextCard();
-        UI.show('swipe');
-    });
+UI.$('#btnBack').addEventListener('click', () => {
+    // ✅ 'choose' 函數已經處理過 'nextCard()'，這裡只需要返回
+    UI.show('swipe');
+});
     
-    UI.$('#btnFav').addEventListener('click', () => {
-        // ✅ 使用 state.current 而不是重新取得
-        if (state.current) {
-            console.log('[App] Adding favorite:', state.current.name);
-            addFav(state.current);
-        } else {
-            console.error('[App] No current restaurant to favorite');
-        }
-        // ✅ 返回時移動到下一張卡片
-        nextCard();
-        UI.show('swipe');
-    });
+UI.$('#btnFav').addEventListener('click', () => {
+    // ✅ 使用 state.current 而不是重新取得
+    if (state.current) {
+        console.log('[App] Adding favorite:', state.current.name);
+        addFav(state.current);
+    } else {
+        console.error('[App] No current restaurant to favorite');
+    }
+    // ✅ 'choose' 函數已經處理過 'nextCard()'，這裡只需要返回
+    UI.show('swipe');
+});
 
     // 錯誤頁面的按鈕
     document.body.addEventListener('click', (e) => {
