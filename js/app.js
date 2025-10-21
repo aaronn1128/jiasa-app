@@ -109,7 +109,7 @@ async function buildPool() {
     
     state.pool = recommender.sortPool(state.pool);
     state.index = 0;
-    state.undoSlot = null;
+    state.undoStack = [];
     analytics.track('filter_apply', 'nearby', { count: state.pool.length, ...state.filters });
     
   } catch (error) {
@@ -135,7 +135,8 @@ function choose(liked, restaurantFromSwipe = null) {
     console.log('[App] Choose called - liked:', liked, 'restaurant:', current.name, 'id:', current.id);
     
     // 儲存到撤銷槽
-    state.undoSlot = current;
+    if (!state.undoStack) state.undoStack = [];
+state.undoStack.push(current);
     
     // 學習偏好
     recommender.learn(current, liked);
@@ -166,9 +167,17 @@ function nextCard() {
 }
 
 function undoSwipe() {
-    if (!state.undoSlot) return;
+    // 檢查堆疊是否為空
+    if (!state.undoStack || state.undoStack.length === 0) return;
+
+    // 從堆疊中彈出 "剛剛滑過" 的那張卡片
+    // (這讓我們能夠連續撤回)
+    state.undoStack.pop(); 
+
+    // 索引倒退
     state.index--;
-    state.undoSlot = null;
+
+    // 重新渲染卡片
     UI.renderStack();
     analytics.track('swipe_undo', 'undo');
 }
