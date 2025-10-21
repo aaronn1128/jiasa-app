@@ -28,7 +28,7 @@ export const state = {
   history: JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.hist) || "[]"),
   
   // 撤銷功能
-  undoSlot: null,              // 儲存上一個滑過的卡片，用於撤銷
+  undoStack: [],              // 儲存上一個滑過的卡片，用於撤銷
   
   // 網路狀態
   isOnline: navigator.onLine,  // 是否在線上
